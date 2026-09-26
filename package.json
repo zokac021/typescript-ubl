@@ -1,32 +1,60 @@
 {
   "name": "typescript-ubl",
-  "version": "0.0.0",
-  "description": "UBL 2.1 library for TypeScript and Node.js",
+  "version": "0.1.0",
+  "description": "Strongly typed OASIS UBL 2.1 for TypeScript: generated types for all 65 document types, with validation, XML serialization and XML parsing.",
+  "keywords": [
+    "ubl",
+    "ubl-2.1",
+    "oasis",
+    "xml",
+    "xsd",
+    "e-invoicing",
+    "invoice",
+    "typescript"
+  ],
+  "author": "Zoran Trajkovic",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zokac021/typescript-ubl.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zokac021/typescript-ubl/issues"
+  },
+  "homepage": "https://github.com/zokac021/typescript-ubl#readme",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "tsc -p codegen/tsconfig.json && tsc -p tsconfig.json && node --test \"codegen/test/**/*.test.ts\"",
-    "codegen": "node codegen/generate.ts",
-    "prepack": "npm run build"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "MIT",
-  "type": "module",
-  "devDependencies": {
-    "@abapify/ts-xsd": "0.4.10",
-    "@types/node": "^26.6.3",
-    "@xmldom/xmldom": "0.9.12",
-    "typescript": "^7.0.2"
-  },
-  "sideEffects": false,
-  "dependencies": {
-    "saxes": "6.0.0"
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
+    "test": "npm run build && tsc -p codegen/tsconfig.json && node --test \"codegen/test/**/*.test.ts\"",
+    "codegen": "node codegen/generate.ts",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm test"
+  },
+  "dependencies": {
+    "saxes": "6.0.0"
+  },
+  "devDependencies": {
+    "@abapify/ts-xsd": "0.4.10",
+    "@types/node": "^26.6.3",
+    "@xmldom/xmldom": "0.9.12",
+    "typescript": "^7.0.2"
+  }
 }

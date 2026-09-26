@@ -566,6 +566,78 @@ State at the end of Phase 4: 236 tests before the phase; 263 after it, all
 passing when the OASIS distribution is available, otherwise 262 passing and 1
 explicitly skipped; `npm run build` passing.
 
+## Phase 5 — Package release preparation
+
+Phase 5 prepared version 0.1.0 for publication. It did not change the runtime
+or the generated model; it changed what the package exposes and ships, and how
+that is verified. Preparation is not publication: at the end of the phase the
+package is versioned 0.1.0, packed and tested, but not yet published to npm.
+
+**Explicit exports map.** `package.json` declares `exports` with only `"."`
+(`types` and `default` pointing at `dist/index.d.ts` and `dist/index.js`) and
+`"./package.json"`. The root already exports everything a consumer needs, and
+`"sideEffects": false` lets bundlers drop unused documents, so subpaths would
+add public surface without adding capability.
+
+**No public subpaths in 0.1.0.** Every subpath would be a compatibility promise
+about the internal file layout. Adding one later is non-breaking; removing one
+is not. The exports map also blocks deep imports into `dist/`, which before this
+phase were technically possible.
+
+**No source maps.** The earlier build emitted `.js.map` and `.d.ts.map` files
+that pointed at `src/`, which the package does not ship; tools following them
+would report missing sources. Shipping `src/` only to satisfy the maps would
+enlarge the package for little benefit, so `sourceMap` and `declarationMap` are
+disabled. The build now deletes `dist/` first, so no stale maps or removed
+modules can leak into a tarball.
+
+**Package isolation.** The tarball contains only `README.md`, `LICENSE`,
+`package.json` and the compiled `.js` and `.d.ts` files under `dist/`: no
+`src/`, `codegen/`, `schemas/`, tests, examples or source maps. The single
+runtime dependency is `saxes` (pinned 6.0.0, with `xmlchars`); the XSD tooling
+(`@abapify/ts-xsd`, `@xmldom/xmldom`) stays a development dependency, and no
+declaration file references Node.js types.
+
+**Examples.** `examples/` holds four short programs — create, validate and
+serialize an Invoice and a DespatchAdvice; parse a document of unknown type
+with `parseUbl`; parse a known type with `parseUblAs` — that import only from
+`typescript-ubl`. A test checks the imports, typechecks the examples with
+`strict`, `exactOptionalPropertyTypes` and `skipLibCheck: false`, and runs
+them.
+
+**npm pack regression test.** `codegen/test/package.test.ts` runs
+`npm pack --dry-run` and asserts the file list (only `dist` JavaScript and
+declarations plus the three root files), that every `exports` target is
+packed, that declarations reference no Node.js types, and the runtime
+dependencies. `npm test` now builds before typechecking the tests, so a fresh
+clone passes without a prior build.
+
+**External clean-consumer testing.** The packed `.tgz` was installed, alone,
+into a new project outside the repository. There, a JavaScript ESM consumer
+exercised the root API at runtime, including `require()` from CommonJS on
+Node.js 22; a TypeScript consumer compiled the README usage code, the examples
+and every public type export with `strict`, `exactOptionalPropertyTypes` and
+`skipLibCheck: false`; deep imports into `dist/` failed both at runtime and
+at type level; and `node_modules` contained only the package, `saxes` and
+`xmlchars`.
+
+**Size.** Removing source maps roughly halved the package:
+
+| | Phase 4 | Phase 5 |
+|---|---:|---:|
+| Packed | 216 kB | 136 kB |
+| Unpacked | 2.6 MB | 1.4 MB |
+| Files | 347 | 175 |
+
+**Node.js 22 or later.** `engines` declares `>=22`. Node.js 20 is out of
+support, and Node.js 22.12 and later can `require()` the ES module package
+from CommonJS. Running the TypeScript examples directly needs Node.js 22.18
+or later (type stripping); the package itself does not.
+
+State at the end of Phase 5: 276 tests, all passing when the OASIS
+distribution is available, otherwise 275 passing and 1 explicitly skipped;
+`npm run build` and `npm pack` passing; version 0.1.0, not published.
+
 ## Engineering lessons
 
 1. Do not trust generated code merely because it compiles.

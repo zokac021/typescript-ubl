@@ -4,7 +4,7 @@ A TypeScript library for working with **OASIS Universal Business Language (UBL) 
 
 The goal of `typescript-ubl` is to provide a strongly typed, namespace-aware implementation of the complete UBL 2.1 specification for TypeScript and Node.js.
 
-> **Status:** Work in progress. The library is not published and is not ready for production use.
+> **Status:** Version 0.1.0 is prepared for release but not yet published to npm. As a 0.x release, the API may still change.
 
 All 65 OASIS UBL 2.1 document types are generated from the official schemas.
 
@@ -31,15 +31,17 @@ Country-specific requirements, extensions, code lists and validation rules shoul
 
 ## Installation
 
-> The package is not published yet. The following installation command represents the intended usage once the first public version is released.
+> The package is not published yet. The following installation command represents the intended usage once 0.1.0 is released.
 
 ```bash
 npm install typescript-ubl
 ```
 
+Requires Node.js 22 or later. The only runtime dependency is `saxes`.
+
 ## Usage
 
-> The API may still change before the first release.
+The package has a single, deliberately small entry point: everything below is imported from `typescript-ubl`. There are no public subpath imports; files under `dist/` are internal and cannot be imported directly. Runnable programs are in [examples/](examples/).
 
 Each document name is exported both as a TypeScript type (the parsed, canonical shape) and as a runtime value describing the document. `…Input` types describe what you can write.
 
@@ -179,8 +181,9 @@ The schema processing, code generation and runtime are implemented and tested ag
 - descriptor-driven validation, XML serialization and XML parsing
 - XML output validated with `xmllint` against the official OASIS XSDs
 - adversarial and differential testing against the official OASIS schemas (Phase 4)
+- an npm package limited to the compiled library, verified by installing the packed tarball in clean TypeScript and JavaScript projects (Phase 5)
 
-Remaining work, mainly packaging for release, is described in the roadmap.
+Version 0.1.0 is prepared for release; publishing it to npm is the remaining step.
 
 ## Verification
 
@@ -272,15 +275,15 @@ Verify the runtime against the official OASIS UBL 2.1 schemas and try to break i
 - Hostile XML and JavaScript input
 - Clean-consumer package test
 
-### Phase 5 — Package release ⏭️ next
+### Phase 5 — Package release ✅ prepared for 0.1.0
 
 Prepare the library for public use.
 
-- Package exports and subpath imports
-- Public API documentation
-- Clean-install verification
+- Explicit `exports` map with a single root entry point
+- Package limited to README, LICENSE, `package.json` and compiled `dist/`
+- Clean-install verification from the packed tarball
 - Usage examples
-- npm release
+- npm release (pending)
 
 The goal is not merely to generate TypeScript interfaces from XSD files. The library is intended to provide a complete, namespace-aware UBL 2.1 runtime for creating, parsing, serializing and validating documents while keeping country-specific and business-specific rules outside the core package.
 

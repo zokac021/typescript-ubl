@@ -352,6 +352,21 @@ annotated `/*#__PURE__*/`, so bundlers can drop unused documents.
 `parseUblAs(Invoice, …)` needs only that document and the shared descriptors;
 `parseUbl(xml)` imports all 65 document descriptors.
 
+## Package boundary
+
+The public API is exactly what `src/index.ts` exports, reached through the
+package root. `package.json` declares an explicit `exports` map with two
+entries, `"."` (types and JavaScript) and `"./package.json"`. The layout of
+`dist/` — `dist/runtime/*`, `dist/generated/*`, `dist/ubl.js` — is an
+implementation detail, not public API: Node.js and TypeScript refuse deep
+imports into it (`ERR_PACKAGE_PATH_NOT_EXPORTED`), so it can change without a
+breaking release. Subpaths can be added later without breaking anyone.
+
+The published package contains only `README.md`, `LICENSE`, `package.json` and
+the compiled `.js` and `.d.ts` files. `codegen/`, `schemas/`, tests, examples,
+`src/` and source maps are not shipped; the declarations reference no Node.js
+types. `codegen/test/package.test.ts` asserts this against `npm pack`.
+
 ## Verification
 
 The strategy is to check the runtime against independent oracles rather than
