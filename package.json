@@ -1,0 +1,18 @@
+{
+  "name": "typescript-ubl",
+  "version": "0.0.0",
+  "description": "UBL 2.1 library for TypeScript and Node.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2"
+  }
+}
