@@ -273,15 +273,40 @@ Any DOCTYPE is rejected, so DTDs, entity declarations and external resources are
 never processed; `saxes` expands only the predefined entities and character
 references, and the runtime performs no I/O.
 
-Element nesting is capped at `MAX_NESTING_DEPTH` (256, the same default as
-libxml2), extension content included. Real documents nest a few dozen levels;
-the cap bounds the parser's work (saxes resolves each prefix by walking the
-open-element stack, which is quadratic in depth) and keeps `validateUbl` and
-`serializeUbl` from exhausting the call stack. Values nested deeper, or
-containing themselves, are reported as `structure.depth` / `structure.cycle`
-instead of recursing.
+Namespace well-formedness is checked by the runtime itself rather than left to
+the SAX parser: every declared prefix and every element and attribute local
+name must be an NCName. `saxes` accepts, for example, an unused
+`xmlns:1a="…"` declaration or a name such as `cac:1Item`; Namespaces in XML
+does not, and neither does the parser.
 
 The input is a JavaScript string; decoding bytes is left to the caller.
+
+## Robustness guarantees
+
+Inputs that TypeScript would reject still reach the runtime from JavaScript
+callers and from hostile documents. The runtime answers them with structured
+results, never with an unstructured exception or unbounded work:
+
+- **Nesting depth.** `MAX_NESTING_DEPTH` is 256, the same default as libxml2.
+  It applies to parsing (extension content included), validation and
+  serialization. Real documents nest a few dozen levels. The cap keeps
+  validation and serialization from exhausting the call stack, in browsers
+  too, and bounds the parser's work: `saxes` resolves each prefix by walking
+  the open-element stack, which costs time quadratic in depth. Deeper input is
+  reported as `structure.depth`.
+- **Cycles.** A value that contains itself is reported as `structure.cycle`
+  instead of being recursed into; the same object used twice elsewhere is not
+  a cycle.
+- **Sparse arrays.** A hole in an array is a missing item, reported as a
+  structural issue, not skipped.
+- **Unknown data.** Unknown properties, elements and attributes are reported,
+  never dropped. Only own, enumerable string-keyed properties are data.
+- **Determinism.** Output order comes from the descriptors, not from object key
+  order, so serialization is deterministic: the same value always gives the
+  same bytes, and serializing a parsed document is a fixed point.
+- **No document-specific code.** The runtime knows no UBL document, type,
+  element or attribute by name; a test scans the runtime source to keep it that
+  way.
 
 ## RawXml and trust
 
@@ -304,8 +329,10 @@ The serializer cannot verify that a caller-built fragment is one well-formed
 element without a parser of its own, so caller-created `RawXml` is refused
 unless `serializeUbl` is called with `trustRawXml: true`. `RawXml` produced by
 the parser is trusted: it is frozen and registered in a module-private
-`WeakSet`. Trust is not a property: a spread, `structuredClone` or JSON copy is
-untrusted again, and there is no public API to mark an object as trusted.
+`WeakSet`. Trust belongs to that object identity, not to its contents: a
+spread, `Object.assign`, `structuredClone` or JSON copy is untrusted again, an
+object inheriting from it is not RawXml at all, and there is no public API to
+mark an object as trusted.
 
 The goal is semantic preservation — expanded names, text, hierarchy and
 namespace bindings — not byte preservation. Prefixes, quoting, whitespace
@@ -327,27 +354,34 @@ annotated `/*#__PURE__*/`, so bundlers can drop unused documents.
 
 ## Verification
 
-`npm test` builds the package and runs the test suite against the compiled
-output. Beyond unit tests it:
+The strategy is to check the runtime against independent oracles rather than
+against itself: the effective schema model the descriptors came from, and the
+official OASIS UBL 2.1 XSDs through `xmllint` (libxml2). `npm test` builds the
+package and runs the suite against the compiled output. Besides unit tests it:
 
-- serializes a descriptor-generated minimal instance of each of the 65
-  documents, parses it back, validates it, serializes it again and validates
-  the result with `xmllint` against the official OASIS schema;
-- does the same round trip for the official OASIS example documents in
-  `schemas/ubl-2.1/xml/`;
-- checks scalar rules against `xmllint` on a small scalar schema.
-
-An adversarial suite (`codegen/test/adversarial/`) tries to break the runtime:
-an independent descriptor ↔ effective-model audit, structural mutations of
-every reachable type compared three ways (descriptor, parser, `xmllint`), a
-value-level validator ↔ XSD differential, a deterministic scalar corpus,
-namespace-syntax rewrites, RawXml namespace torture, hostile XML and
-JavaScript inputs, and rich instances covering every reachable type, element
-and attribute. Setting `UBL21_DISTRIBUTION_XML_DIR` to a local copy of the
-OASIS distribution's `xml/` directory also round-trips every file in it.
+- round-trips a descriptor-generated minimal instance and a rich instance
+  (covering every reachable type, element and attribute) of each of the 65
+  documents through serialize, parse and validate, and validates the output
+  with `xmllint` against the official schemas;
+- audits the generated descriptors against the effective schema model by an
+  independent traversal;
+- mutates XML (cardinality, order, attributes, namespaces) and values
+  (scalar corpora) and compares descriptor expectation, parser, validator and
+  `xmllint`;
+- attacks the runtime with hostile XML, hostile JavaScript values, XML 1.0
+  character boundaries and namespace-heavy extension content;
+- round-trips the official OASIS example documents in `schemas/ubl-2.1/xml/`
+  and, when `UBL21_DISTRIBUTION_XML_DIR` points to a local copy of the OASIS
+  distribution's `xml/` directory, every file in it.
 
 Tests that need `xmllint` are skipped with an explicit message when it is not
-installed.
+installed. The adversarial part lives in `codegen/test/adversarial/`; the
+results and the defects it found are described in
+[development-history.md](development-history.md#phase-4--oasis-compliance-and-adversarial-hardening).
+
+`xmllint` is an oracle, not the definition of correct. Where libxml2 departs
+from XML Schema 1.0 (see below) the runtime follows the specification, and
+the tests classify those cases explicitly.
 
 ## Known limitations
 
@@ -361,9 +395,13 @@ installed.
   fragment uses (QNames inside signature content can depend on them).
 - libxml2 deviates from XML Schema 1.0 in a few documented places: it accepts
   characters outside the base64 alphabet, caps `xs:decimal` precision (about
-  24 digits) and rejects surrounding whitespace in some date/time values. The
-  runtime follows the specification, so a decimal with more digits than
-  libxml2 supports is written although libxml2 would reject it.
+  24 digits), rejects surrounding whitespace in some date/time values, and
+  refuses nesting beyond 256 levels without `XML_PARSE_HUGE`. The runtime
+  follows the specification, so a decimal with more digits than libxml2
+  supports is written although libxml2 would reject it. This is an
+  interoperability consideration, not a defect of either side's reading of
+  the value.
+- Documents nested more than 256 levels deep are refused by design.
 - Getters on input objects are read like ordinary properties (possibly more
   than once); symbol-keyed and non-enumerable properties are not data and are
   ignored.

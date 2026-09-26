@@ -390,6 +390,182 @@ done against a local copy of the distribution.
 
 State at the end of Phase 3d: `npm test` 236/236, `npm run build` passing.
 
+## Phase 4 — OASIS compliance and adversarial hardening
+
+At the end of Phase 3d everything passed. Phase 4 existed because passing
+tests written by the same people who wrote the code is weak evidence. Its
+purpose was not to raise the test count but to try to falsify the assumptions
+made in Phases 1–3 and to break the runtime on purpose — preferring, wherever
+possible, an oracle that did not come from this project: the effective schema
+model the descriptors were generated from, and the official OASIS UBL 2.1 XSDs
+through `xmllint` (libxml2).
+
+Each disagreement was classified before anything was fixed:
+
+- **A** — implementation bug: the architecture has the information, the code
+  is wrong;
+- **B** — descriptor or code-generation bug;
+- **C** — schema-model bug (our reading of XSD is wrong);
+- **D** — deviation of the external oracle from the specification;
+- **E** — unsupported capability.
+
+Document-specific fixes, weakening validation to accept an input, and changing
+official fixtures were ruled out in advance.
+
+### Verification approaches
+
+1. **Descriptor ↔ effective XSD audit.** An independent traversal from each of
+   the 65 document roots walks the effective model and the generated runtime
+   descriptors side by side, without using the emitter's type list or its alias
+   decisions; where a descriptor points at a UDT type instead of the CBC type
+   the schema names, the two are compared by meaning. It compared 1174 type
+   pairs, 3889 elements (QName, order, occurrence), 3621 attribute occurrences
+   (QName, use, scalar kind), 879 simple values and 1 wildcard: 0 mismatches.
+2. **Differential scalar validation.** A deterministic corpus of 4215 lexical
+   values over the ten scalar kinds (leap years, year 0000, negative years,
+   timezones up to and beyond ±14:00, `24:00:00`, long decimals, exponents,
+   base64 padding bits, URI structure, …) was run through the parser's scalar
+   path and through `xmllint` on a small scalar schema. Separately, 4962 value
+   cases placed the corpus into the values and attributes of real UBL types,
+   comparing `validateUbl` with `xmllint` on the serialized document.
+3. **Cardinality mutations.** For every complex type reachable from the 65
+   documents, a small document holding that type with every child present was
+   mutated by removing and duplicating each child.
+4. **Element-order mutations.** The same documents with neighbours swapped, the
+   last child moved first and an earlier child repeated after a later one.
+   Together with attribute mutations (required attribute removed, unknown
+   attribute, attribute in another namespace, `xml:lang`, `xsi:schemaLocation`)
+   this gave 12,284 XML mutations, each judged three ways — descriptor
+   expectation, our parser and validator, and `xmllint` with the OASIS schema —
+   with no disagreement.
+5. **Namespace torture.** 325 rewrites of the rich documents changed only
+   namespace syntax (Unicode prefixes, declarations at first use, a default
+   namespace on every element, one prefix rebound at every level, alternating
+   strategies, a prefixed root, unused declarations in reverse order): all
+   parsed to the same value and passed the OASIS schema. 260 mutations that
+   changed an expanded name were rejected by both the parser and `xmllint`.
+6. **XML character boundaries.** 28 code points around the XML 1.0 `Char`
+   ranges (NUL, C0, `0x7F`–`0x9F`, surrogates, `U+FFFE`/`U+FFFF`,
+   `U+10FFFF`, …), in text and attributes, as literals and as character
+   references, plus end-of-line handling.
+7. **Malformed and hostile XML.** 43 inputs: multiple roots, stray text,
+   mismatched tags, undeclared prefixes, duplicate (expanded) attributes,
+   reserved-prefix misuse, invalid names and character references, malformed
+   comments, CDATA and processing instructions, and every DOCTYPE form —
+   internal, external, parameter and recursive entities, "billion laughs", a
+   1 MB entity, external and public DTDs.
+8. **Object-shape attacks.** Plain JavaScript values TypeScript would reject:
+   unknown and inherited properties, null prototypes, symbols, getters,
+   `Map`, `Date`, `BigInt`, arrays and objects swapped, sparse arrays, cyclic
+   and very deeply nested objects, frozen inputs, `__proto__` keys.
+9. **RawXml namespace and trust torture.** Extension content relying on
+   inherited, redeclared, defaulted and undeclared namespaces, QNames inside
+   text and attribute values, comments, processing instructions and CDATA,
+   round-tripped twice and compared by meaning; copies of trusted RawXml
+   checked to be untrusted.
+10. **The complete available OASIS corpus.** Every XML file of a local copy of
+    the OASIS UBL 2.1 distribution, as described below.
+11. **Rich instances.** A generic, deterministic generator expands every type
+    fully the first time it occurs in a document and minimally afterwards. For
+    all 65 documents it reached 309/309 reachable types, 3889/3889 reachable
+    elements and 37/37 distinct reachable attributes, and every document passed
+    validate → serialize → OASIS XSD → parse → validate → serialize → OASIS XSD.
+12. **Canonical idempotence.** For all 65 rich documents, parse → serialize →
+    parse gives the same canonical value, and the second and third
+    serializations are byte-identical.
+13. **Deterministic output.** Regenerating the code changes no file;
+    serialization is independent of object key order and of frozen inputs.
+14. **Resources.** Bounded measurements looked for accidental quadratic work
+    and stack exhaustion: invoices of 1,000 and 4,000 lines, a 50 MB text value,
+    10,000 namespace declarations, deep extension content.
+15. **Mutation testing.** Nine defects were introduced on purpose — child
+    lookup by local name, no order check, no required-element check, no
+    required-attribute check, decimals with exponents, `&` left unescaped in
+    text, all RawXml trusted, root lookup by local name, and one required
+    element made optional in the generated descriptors — and the full suite was
+    run against each. All nine were detected.
+16. **Dependencies and licences.** `npm audit` found no vulnerabilities; the
+    production tree is exactly `saxes` 6.0.0 → `xmlchars` 2.2.0 (ISC and MIT).
+17. **Packaging.** `npm pack`, then installation of the tarball in a clean
+    project outside the repository, TypeScript compilation with
+    `skipLibCheck: false`, and a Node.js ESM run of serialize → parse →
+    validate.
+
+### What broke
+
+Eight real defects were found. All were class A.
+
+1. **Leap years in negative years.** The `xs:date` day check applied the
+   leap-year rule to the astronomical year (`year + 1` for negative years), so
+   `-0001-02-29` was accepted and `-0004-02-29` rejected. XML Schema 1.0 applies
+   the rule to the year value as written; the check now does too.
+2. **`xs:anyURI` too permissive.** Only a stray `%` was rejected, so values such
+   as `a#b#c` passed. `xs:anyURI` accepts what remains a URI reference after
+   XLink escaping; the check now also rejects a second `#`, a first segment
+   whose `:` does not follow a valid scheme, and `[`/`]` outside an IPv6
+   literal host — and nothing stricter.
+3. **Sparse arrays.** The validator skipped holes (`forEach`), accepting
+   `[, line]` and even an array of holes for a required element, and the
+   serializer then crashed with a `TypeError`. A hole is now a missing item,
+   reported as a structural issue.
+4. **Cyclic objects.** A value containing itself overflowed the call stack in
+   both the validator and the serializer. Cycles are now reported as
+   `structure.cycle`.
+5. **Excessive nesting.** Deep but finite values also overflowed the stack
+   (from roughly 2,000 levels, depending on the JIT). A documented
+   `MAX_NESTING_DEPTH` of 256 now applies, reported as `structure.depth`.
+6. **Names `saxes` accepts but Namespaces in XML does not.** The parser accepted
+   an unused declaration of a prefix that is not an NCName (`xmlns:1a`,
+   `xmlns:-x`) and a local part that is not an NCName (`cac:1Item`), which
+   `xmllint` rejects. The parser now checks both itself.
+7. **Quadratic parsing of deep extension content.** `saxes` resolves each
+   prefix by walking the stack of open elements, so deeply nested foreign
+   content inside `ext:ExtensionContent` cost time quadratic in depth: a
+   document of about 1 MB with 100,000 nested elements took around four
+   minutes to parse, a denial-of-service risk. The depth limit now covers extension content as
+   well; that input is refused in milliseconds.
+8. **The npm tarball.** Without a `files` field, npm fell back to `.gitignore`,
+   which excludes `dist/`: the package lacked the code its `main` field names,
+   while shipping `codegen/`, `schemas/` and the TypeScript sources. A `files`
+   field (`dist`, `README.md`, `LICENSE`) and a `prepack` build now produce a
+   211 KB tarball that works in a clean consumer project.
+
+Each has a regression test.
+
+Other disagreements were classified, not fixed:
+
+- **D — libxml2 deviations.** libxml2 accepts characters outside the base64
+  alphabet, caps `xs:decimal` precision at about 24 digits, rejects
+  surrounding whitespace in some date/time values although their whiteSpace
+  facet is `collapse`, and refuses nesting beyond 256 levels by default. The
+  runtime follows XML Schema 1.0; the tests list each such case by rule.
+- **By design.** Input values are expected to be whitespace-processed already,
+  so, for example, a `normalizedString` value containing a line feed is
+  rejected by `validateUbl` even though the XSD, which normalises the text
+  first, would accept the serialized document.
+- **E — unsupported.** `xsi:type`, `xsi:nil` and `strict` wildcards remain
+  rejected with explicit errors.
+
+### Result
+
+No Phase 4 failure required changing the QName-aware schema model, the
+effective type model, the generated UBL descriptors, or the descriptor-driven
+runtime architecture. Every defect was in runtime code or package
+configuration: no class-B (descriptor or code generation) and no class-C
+(schema model) defect was found.
+
+The OASIS corpus test reads the complete distribution from a local directory
+named by `UBL21_DISTRIBUTION_XML_DIR`, because the distribution is not copied
+into the repository. Of its 57 XML files, the 56 UBL documents (39 document
+types) complete the full round trip through `xmllint`; the remaining file,
+`UBL-Invoice-2.0-Detached-Signature.xml`, has `ds:Signature` as its root and
+is classified as not a UBL document root, with `document.unknown` expected.
+Without the variable the test is skipped with an explicit message.
+
+State at the end of Phase 4: 236 tests before the phase; 263 after it, all
+passing when the OASIS distribution is available, otherwise 262 passing and 1
+explicitly skipped; `npm run build` passing.
+
 ## Engineering lessons
 
 1. Do not trust generated code merely because it compiles.

@@ -178,8 +178,44 @@ The schema processing, code generation and runtime are implemented and tested ag
 - generated runtime descriptors
 - descriptor-driven validation, XML serialization and XML parsing
 - XML output validated with `xmllint` against the official OASIS XSDs
+- adversarial and differential testing against the official OASIS schemas (Phase 4)
 
-Remaining work is described in the roadmap.
+Remaining work, mainly packaging for release, is described in the roadmap.
+
+## Verification
+
+The runtime is not only tested with a few hand-written examples. It was checked against independent oracles — the effective XSD model the runtime metadata was generated from, and the official OASIS UBL 2.1 XSD distribution through `xmllint` — and deliberately attacked with mutated, hostile and unusual input.
+
+| Verification | Result |
+| --- | ---: |
+| UBL document types exercised | 65 / 65 |
+| Reachable types covered by generated instances | 309 / 309 |
+| Reachable elements covered | 3,889 / 3,889 |
+| Distinct reachable attributes covered | 37 / 37 |
+| Descriptor ↔ effective-XSD mismatches | 0 |
+| Structural XML mutations checked against the OASIS XSD | 12,284 |
+| Scalar/value cases checked against the OASIS XSD | 4,962 |
+| Namespace-equivalent rewrites (same meaning, accepted) | 325 |
+| Incorrect namespace/expanded-name mutations rejected | 260 |
+| Hostile XML cases | 43 |
+| Intentional implementation defects detected by the tests | 9 / 9 |
+| Applicable OASIS example files round-tripped | 56 / 56 |
+
+What these numbers mean:
+
+- **Coverage.** For each of the 65 document types a generated instance fills as much of the schema as a finite document can, reaching every reachable type, element and attribute. Each passes validate → serialize → OASIS XSD → parse → validate → serialize → OASIS XSD, and serializing a parsed document is byte-for-byte idempotent.
+- **Metadata audit.** An independent traversal compared the generated runtime metadata with the effective XSD model: 1174 type pairs, 3889 elements, 3621 attribute occurrences, 879 simple values and 1 wildcard, with no mismatch.
+- **Differential testing.** Documents were mutated (missing, duplicated and reordered elements, attributes added and removed, namespaces changed) and values were drawn from a deterministic scalar corpus; our parser and validator were compared case by case with `xmllint` and the official schemas.
+- **Official examples.** The OASIS UBL 2.1 distribution contains 57 XML files. The 56 UBL documents, across 39 document types, round-trip through parse, validate, serialize and the official XSD back to the same value. The remaining file is a detached `ds:Signature`, intentionally not a UBL document root. Five examples are kept in the repository; the complete distribution is used when available locally.
+- **Hostile input.** Malformed XML, DTDs and entity attacks, invalid names and characters, deeply nested and cyclic values, and plain JavaScript objects TypeScript would reject all produce structured errors.
+- **Mutation testing.** Nine defects introduced on purpose (for example, matching elements by local name only, or skipping order checks) were each caught by the test suite.
+- **Packaging.** The packed npm tarball was installed and used in a clean project outside the repository.
+
+`xmllint` (libxml2) is used as an oracle, not as the definition of correct. Where libxml2 departs from XML Schema 1.0 — very large decimal lexical values, some base64 input, whitespace around date/time values — the library follows the specification, and the tests classify those cases explicitly.
+
+This is strong evidence, not certification. The verification covers the generic OASIS UBL 2.1 structure and semantics. It does not mean that any country-specific CIUS or business profile (such as EN 16931 or Peppol rules) is validated by the core library; such rules belong in separate packages.
+
+See [docs/development-history.md](docs/development-history.md#phase-4--oasis-compliance-and-adversarial-hardening) for the method, the defects this work found and how they were fixed.
 
 ## AI-assisted development
 
@@ -216,7 +252,7 @@ Resolve XML Schema inheritance and derive the effective UBL type system.
 - Wildcards
 - Full UBL 2.1 type graph validation
 
-### Phase 3 — TypeScript library generation ✅
+### Phase 3 — TypeScript runtime ✅
 
 Generate the public TypeScript API and runtime schema metadata.
 
@@ -225,17 +261,18 @@ Generate the public TypeScript API and runtime schema metadata.
 - **3c — XML serializer and UBL validation** ✅
 - **3d — XML parser and raw extension content** ✅
 
-### Phase 4 — Round-trip and OASIS compliance ⏭️ next
+### Phase 4 — OASIS compliance and adversarial hardening ✅
 
-Verify generated documents against the official OASIS UBL 2.1 schemas and representative document instances.
+Verify the runtime against the official OASIS UBL 2.1 schemas and try to break it.
 
-- Official UBL XML examples
-- Parse → serialize round-trip tests
-- XSD validation
-- Namespace and cardinality verification
-- Coverage across all 65 UBL 2.1 document types
+- Official UBL XML examples and the complete OASIS example corpus
+- Parse → serialize round-trip tests across all 65 document types
+- Descriptor ↔ effective-XSD audit
+- Differential, mutation and namespace testing against the official XSDs
+- Hostile XML and JavaScript input
+- Clean-consumer package test
 
-### Phase 5 — Package release (future)
+### Phase 5 — Package release ⏭️ next
 
 Prepare the library for public use.
 
