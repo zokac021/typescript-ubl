@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Invalid: a non-XSD child named "element" inside a sequence. ts-xsd matches by
+     local name and takes it for a particle; the DOM does not. The adapter must refuse. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:f="urn:test:foreign"
+           targetNamespace="urn:test:foreign">
+  <xs:complexType name="T">
+    <xs:sequence>
+      <xs:element name="A" type="xs:string"/>
+      <f:element name="Intruder"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

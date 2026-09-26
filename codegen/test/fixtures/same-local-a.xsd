@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test:a" xmlns:a="urn:test:a"
+           elementFormDefault="qualified">
+  <xs:complexType name="PartyType">
+    <xs:sequence>
+      <xs:element name="Name" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="Party" type="a:PartyType"/>
+</xs:schema>

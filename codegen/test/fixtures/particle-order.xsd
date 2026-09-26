@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Compositors that interleave every kind of particle, at several structural depths. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:o="urn:test:order"
+           targetNamespace="urn:test:order" elementFormDefault="qualified">
+  <xs:group name="Tail">
+    <xs:sequence>
+      <xs:any namespace="##other" processContents="lax" minOccurs="0"/>
+      <xs:element name="TailA" type="xs:string"/>
+      <xs:choice>
+        <xs:element name="TailB" type="xs:string"/>
+        <xs:sequence>
+          <xs:element name="TailC" type="xs:string"/>
+        </xs:sequence>
+      </xs:choice>
+    </xs:sequence>
+  </xs:group>
+
+  <xs:element name="Ref" type="xs:string"/>
+
+  <xs:complexType name="MixedType">
+    <xs:sequence>
+      <xs:element name="A" type="xs:string"/>
+      <xs:choice>
+        <xs:element name="B" type="xs:string"/>
+        <xs:element name="C" type="xs:string"/>
+      </xs:choice>
+      <xs:element ref="o:Ref"/>
+      <xs:group ref="o:Tail"/>
+      <xs:sequence minOccurs="0">
+        <xs:element name="E" type="xs:string"/>
+        <xs:element name="F" type="xs:string"/>
+      </xs:sequence>
+      <xs:any namespace="##other" processContents="skip"/>
+      <xs:element name="Nested">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:any namespace="##any"/>
+            <xs:element name="X" type="xs:string"/>
+            <xs:choice>
+              <xs:element name="Y" type="xs:string"/>
+              <xs:element name="Z" type="xs:string"/>
+            </xs:choice>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="H" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ExtendedType">
+    <xs:complexContent>
+      <xs:extension base="o:MixedType">
+        <xs:choice>
+          <xs:sequence>
+            <xs:element name="P" type="xs:string"/>
+          </xs:sequence>
+          <xs:element name="Q" type="xs:string"/>
+          <xs:any namespace="##other"/>
+        </xs:choice>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+</xs:schema>

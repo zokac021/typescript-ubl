@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- urn:test:a is imported, but declares no OrderType. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test:u" xmlns:a="urn:test:a">
+  <xs:import namespace="urn:test:a" schemaLocation="same-local-a.xsd"/>
+  <xs:element name="Order" type="a:OrderType"/>
+</xs:schema>

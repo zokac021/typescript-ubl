@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Valid for the registry (every QName resolves), but derivation loops. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:c="urn:test:cycle" targetNamespace="urn:test:cycle">
+  <xs:complexType name="A">
+    <xs:complexContent>
+      <xs:extension base="c:B"/>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="B">
+    <xs:complexContent>
+      <xs:extension base="c:C"/>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="C">
+    <xs:complexContent>
+      <xs:extension base="c:A"/>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:attributeGroup name="G1">
+    <xs:attributeGroup ref="c:G2"/>
+  </xs:attributeGroup>
+  <xs:attributeGroup name="G2">
+    <xs:attributeGroup ref="c:G1"/>
+  </xs:attributeGroup>
+  <xs:complexType name="UsesG1">
+    <xs:attributeGroup ref="c:G1"/>
+  </xs:complexType>
+
+  <xs:group name="Loop">
+    <xs:sequence>
+      <xs:group ref="c:Loop"/>
+    </xs:sequence>
+  </xs:group>
+  <xs:complexType name="UsesLoop">
+    <xs:group ref="c:Loop"/>
+  </xs:complexType>
+
+  <!-- Recursion through an element's named type is legal and must not count as a cycle. -->
+  <xs:complexType name="Node">
+    <xs:sequence>
+      <xs:element name="Child" type="c:Node" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

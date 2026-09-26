@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- One element per XML Schema built-in type the runtime supports; an oracle for scalar rules. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test:scalars" elementFormDefault="qualified">
+  <xs:element name="string" type="xs:string"/>
+  <xs:element name="normalizedString" type="xs:normalizedString"/>
+  <xs:element name="language" type="xs:language"/>
+  <xs:element name="anyURI" type="xs:anyURI"/>
+  <xs:element name="base64Binary" type="xs:base64Binary"/>
+  <xs:element name="boolean" type="xs:boolean"/>
+  <xs:element name="decimal" type="xs:decimal"/>
+  <xs:element name="date" type="xs:date"/>
+  <xs:element name="time" type="xs:time"/>
+  <xs:element name="dateTime" type="xs:dateTime"/>
+</xs:schema>

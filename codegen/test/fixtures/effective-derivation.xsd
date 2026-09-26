@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Every derivation form the effective resolver supports, in one namespace. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:e="urn:test:eff"
+           targetNamespace="urn:test:eff" elementFormDefault="qualified">
+
+  <!-- Simple type restriction chain -->
+  <xs:simpleType name="Code">
+    <xs:restriction base="xs:token">
+      <xs:pattern value="[A-Z]+"/>
+      <xs:enumeration value="AA"/>
+      <xs:enumeration value="BB"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="NarrowCode">
+    <xs:restriction base="e:Code">
+      <xs:pattern value="A+"/>
+      <xs:enumeration value="AA"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- simpleContent extension / restriction -->
+  <xs:complexType name="Measure">
+    <xs:simpleContent>
+      <xs:extension base="xs:decimal">
+        <xs:attribute name="unit" type="xs:token" use="optional"/>
+        <xs:attribute name="version" type="xs:string"/>
+        <xs:attribute name="source" type="xs:anyURI" use="required"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="ExtendedMeasure">
+    <xs:simpleContent>
+      <xs:extension base="e:Measure">
+        <xs:attribute name="precision" type="xs:integer"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedMeasure">
+    <xs:simpleContent>
+      <xs:restriction base="e:Measure">
+        <xs:maxInclusive value="100"/>
+        <xs:attribute name="unit" type="xs:token" use="required"/>
+        <xs:attribute name="version" use="prohibited"/>
+      </xs:restriction>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="CodeValue">
+    <xs:simpleContent>
+      <xs:extension base="e:NarrowCode">
+        <xs:attribute name="listID" type="xs:normalizedString"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <!-- Attribute groups, nested -->
+  <xs:attributeGroup name="Common">
+    <xs:attribute name="lang" type="xs:language"/>
+    <xs:attributeGroup ref="e:Inner"/>
+  </xs:attributeGroup>
+  <xs:attributeGroup name="Inner">
+    <xs:attribute name="stamp" type="xs:dateTime" use="required"/>
+  </xs:attributeGroup>
+  <xs:attribute name="global" type="xs:boolean"/>
+
+  <!-- complexContent extension / restriction -->
+  <xs:complexType name="Party">
+    <xs:sequence>
+      <xs:element name="Name" type="xs:string"/>
+      <xs:choice minOccurs="0">
+        <xs:element name="Email" type="xs:string"/>
+        <xs:element name="Phone" type="xs:string"/>
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID"/>
+    <xs:attribute ref="e:global"/>
+    <xs:attributeGroup ref="e:Common"/>
+  </xs:complexType>
+  <xs:complexType name="ExtendedParty">
+    <xs:complexContent>
+      <xs:extension base="e:Party">
+        <xs:sequence>
+          <xs:element name="Role" type="e:Code" maxOccurs="unbounded"/>
+        </xs:sequence>
+        <xs:attribute name="rank" type="xs:integer"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedParty">
+    <xs:complexContent>
+      <xs:restriction base="e:Party">
+        <xs:sequence>
+          <xs:element name="Name" type="xs:string"/>
+        </xs:sequence>
+        <xs:attribute name="id" type="xs:ID" use="required"/>
+      </xs:restriction>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="EmptyExtension">
+    <xs:complexContent>
+      <xs:extension base="e:Party"/>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <!-- Named model groups and wildcards -->
+  <xs:group name="Address">
+    <xs:sequence>
+      <xs:element name="Street" type="xs:string"/>
+      <xs:element name="City" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:group>
+  <xs:complexType name="Location">
+    <xs:sequence>
+      <xs:group ref="e:Address" minOccurs="0" maxOccurs="2"/>
+      <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:anyAttribute namespace="##other" processContents="skip"/>
+  </xs:complexType>
+  <xs:complexType name="Empty"/>
+  <xs:complexType name="TextOnly" mixed="true"/>
+</xs:schema>

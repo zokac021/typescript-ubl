@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test:b" xmlns:b="urn:test:b"
+           xmlns:a="urn:test:a">
+  <xs:import namespace="urn:test:a" schemaLocation="same-local-a.xsd"/>
+  <xs:complexType name="PartyType">
+    <xs:complexContent>
+      <xs:extension base="a:PartyType">
+        <xs:sequence>
+          <xs:element ref="a:Party"/>
+          <xs:element ref="b:Party"/>
+        </xs:sequence>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:element name="Party" type="b:PartyType"/>
+</xs:schema>

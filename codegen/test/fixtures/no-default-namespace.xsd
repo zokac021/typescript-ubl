@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- No default namespace: 'NoteType' means {}NoteType, not the target namespace. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test:nodefault">
+  <xs:complexType name="NoteType"/>
+  <xs:element name="Note" type="NoteType"/>
+</xs:schema>

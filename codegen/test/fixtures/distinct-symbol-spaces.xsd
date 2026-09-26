@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test:spaces" xmlns:s="urn:test:spaces">
+  <xs:complexType name="Item">
+    <xs:attribute ref="s:Item"/>
+  </xs:complexType>
+  <xs:element name="Item" type="s:Item"/>
+  <xs:attribute name="Item" type="xs:string"/>
+</xs:schema>

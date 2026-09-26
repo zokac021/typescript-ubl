@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Unprefixed QNames take the default namespace, which here is the target namespace. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="urn:test:default" targetNamespace="urn:test:default">
+  <xs:complexType name="NoteType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string"/>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:element name="Note" type="NoteType"/>
+</xs:schema>
