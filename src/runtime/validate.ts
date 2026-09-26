@@ -20,6 +20,7 @@ import type {
 	UblDocumentDescriptor,
 	XmlName,
 } from "./schema.js";
+import { MAX_NESTING_DEPTH } from "./schema.js";
 import { invalidXmlCharIndex, isNCName } from "./xml.js";
 
 /** Stable, machine-readable issue codes. Messages are for people and may change. */
@@ -27,6 +28,8 @@ export type UblIssueCode =
 	| "structure.object"
 	| "structure.array"
 	| "structure.notArray"
+	| "structure.cycle"
+	| "structure.depth"
 	| "element.missing"
 	| "element.empty"
 	| "property.unknown"
@@ -95,6 +98,8 @@ class Validator {
 	private readonly prefixes: Readonly<Record<string, string>>;
 	private readonly defaultNamespace: string;
 	private readonly issues: UblIssue[];
+	/** Objects on the current path, to report cycles instead of recursing forever. */
+	private readonly active = new Set<object>();
 
 	constructor(types: TypeRegistry, prefixes: Readonly<Record<string, string>>, defaultNamespace: string, issues: UblIssue[]) {
 		this.types = types;
@@ -112,6 +117,23 @@ class Validator {
 			this.issue("structure.object", path, xmlPath, "Expected an object.");
 			return;
 		}
+		if (this.active.has(value)) {
+			this.issue("structure.cycle", path, xmlPath, "The value contains itself (a cyclic reference).");
+			return;
+		}
+		if (this.active.size >= MAX_NESTING_DEPTH) {
+			this.issue("structure.depth", path, xmlPath, `Nested more than ${MAX_NESTING_DEPTH} levels deep.`);
+			return;
+		}
+		this.active.add(value);
+		try {
+			this.members(descriptor, value, path, xmlPath);
+		} finally {
+			this.active.delete(value);
+		}
+	}
+
+	private members(descriptor: ComplexTypeDescriptor, value: Readonly<Record<string, unknown>>, path: string, xmlPath: string): void {
 		const known = new Set(descriptor.elements.map((e) => e.property));
 		for (const key of Object.keys(value)) {
 			if (!known.has(key)) this.issue("property.unknown", join(path, key), xmlPath, `Unknown property '${key}'.`);
@@ -136,7 +158,8 @@ class Validator {
 			return;
 		}
 		if (value.length === 0 && element.minOccurs === 1) this.issue("element.empty", path, xmlPath, `'${element.property}' requires at least one item.`);
-		value.forEach((item, index) => this.value(element.type, item, `${path}[${index}]`, `${xmlPath}[${index + 1}]`));
+		// A hole in a sparse array is a missing item, not a skipped one.
+		for (let index = 0; index < value.length; index++) this.value(element.type, value[index], `${path}[${index}]`, `${xmlPath}[${index + 1}]`);
 	}
 
 	private value(type: ElementDescriptor["type"], value: unknown, path: string, xmlPath: string): void {

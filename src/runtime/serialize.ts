@@ -19,6 +19,7 @@ import type {
 	UblDocumentDescriptor,
 	XmlName,
 } from "./schema.js";
+import { MAX_NESTING_DEPTH } from "./schema.js";
 import { UblValidationError, isPlainObject, own, validateUbl } from "./validate.js";
 import type { UblIssue } from "./validate.js";
 import { escapeAttribute, escapeText, invalidXmlCharIndex, isValidPrefix } from "./xml.js";
@@ -76,6 +77,8 @@ class Serializer {
 	private readonly prefixOf = new Map<string, string>();
 	private readonly out: string[] = [];
 	private started = false;
+	/** Objects on the current path: cycles and excessive depth stop serialization. */
+	private readonly active = new Set<object>();
 
 	constructor(document: UblDocumentDescriptor<unknown, unknown>, options: SerializeUblOptions) {
 		this.document = document;
@@ -105,6 +108,15 @@ class Serializer {
 	/** Record the namespaces of every element and attribute that will be written. */
 	private collect(descriptor: ComplexTypeDescriptor, value: unknown, path: string, used: Set<string>): void {
 		const object = this.object(value, path);
+		this.enter(object, path);
+		try {
+			this.collectMembers(descriptor, object, path, used);
+		} finally {
+			this.active.delete(object);
+		}
+	}
+
+	private collectMembers(descriptor: ComplexTypeDescriptor, object: Readonly<Record<string, unknown>>, path: string, used: Set<string>): void {
 		for (const element of descriptor.elements) {
 			for (const [item, itemPath] of this.occurrences(element, own(object, element.property), path)) {
 				used.add(element.name.namespaceURI);
@@ -159,11 +171,28 @@ class Serializer {
 		}
 		if (!Array.isArray(value)) throw new UblSerializationError(path, `Expected an array for '${element.property}'`);
 		if (value.length === 0 && element.minOccurs === 1) throw new UblSerializationError(path, `'${element.property}' requires at least one item`);
-		return value.map((item, index) => [item, `${path}[${index}]`]);
+		// Array.from keeps holes of a sparse array as undefined items (map would skip them).
+		return Array.from(value as unknown[], (item, index) => [item, `${path}[${index}]`]);
 	}
 
 	private children(descriptor: ComplexTypeDescriptor, value: unknown, path: string, depth: number): void {
 		const object = this.object(value, path);
+		this.enter(object, path);
+		try {
+			this.childElements(descriptor, object, path, depth);
+		} finally {
+			this.active.delete(object);
+		}
+	}
+
+	/** Track an object on the current path; a cycle or excessive depth cannot be written. */
+	private enter(object: object, path: string): void {
+		if (this.active.has(object)) throw new UblSerializationError(path, "The value contains itself (a cyclic reference)");
+		if (this.active.size >= MAX_NESTING_DEPTH) throw new UblSerializationError(path, `Nested more than ${MAX_NESTING_DEPTH} levels deep`);
+		this.active.add(object);
+	}
+
+	private childElements(descriptor: ComplexTypeDescriptor, object: Readonly<Record<string, unknown>>, path: string, depth: number): void {
 		for (const element of descriptor.elements) {
 			for (const [item, itemPath] of this.occurrences(element, own(object, element.property), path)) {
 				const type = this.types.get(element.type);

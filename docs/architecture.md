@@ -273,6 +273,14 @@ Any DOCTYPE is rejected, so DTDs, entity declarations and external resources are
 never processed; `saxes` expands only the predefined entities and character
 references, and the runtime performs no I/O.
 
+Element nesting is capped at `MAX_NESTING_DEPTH` (256, the same default as
+libxml2), extension content included. Real documents nest a few dozen levels;
+the cap bounds the parser's work (saxes resolves each prefix by walking the
+open-element stack, which is quadratic in depth) and keeps `validateUbl` and
+`serializeUbl` from exhausting the call stack. Values nested deeper, or
+containing themselves, are reported as `structure.depth` / `structure.cycle`
+instead of recursing.
+
 The input is a JavaScript string; decoding bytes is left to the caller.
 
 ## RawXml and trust
@@ -329,6 +337,15 @@ output. Beyond unit tests it:
   `schemas/ubl-2.1/xml/`;
 - checks scalar rules against `xmllint` on a small scalar schema.
 
+An adversarial suite (`codegen/test/adversarial/`) tries to break the runtime:
+an independent descriptor ↔ effective-model audit, structural mutations of
+every reachable type compared three ways (descriptor, parser, `xmllint`), a
+value-level validator ↔ XSD differential, a deterministic scalar corpus,
+namespace-syntax rewrites, RawXml namespace torture, hostile XML and
+JavaScript inputs, and rich instances covering every reachable type, element
+and attribute. Setting `UBL21_DISTRIBUTION_XML_DIR` to a local copy of the
+OASIS distribution's `xml/` directory also round-trips every file in it.
+
 Tests that need `xmllint` are skipped with an explicit message when it is not
 installed.
 
@@ -342,7 +359,12 @@ installed.
   is reported as missing even when it appears later out of order.
 - `RawXml.namespaces` contains all bindings in scope, not only those the
   fragment uses (QNames inside signature content can depend on them).
-- libxml2 accepts some values XML Schema 1.0 rejects (characters outside the
-  base64 alphabet) and caps `xs:decimal` precision; the runtime follows the
-  specification.
+- libxml2 deviates from XML Schema 1.0 in a few documented places: it accepts
+  characters outside the base64 alphabet, caps `xs:decimal` precision (about
+  24 digits) and rejects surrounding whitespace in some date/time values. The
+  runtime follows the specification, so a decimal with more digits than
+  libxml2 supports is written although libxml2 would reject it.
+- Getters on input objects are read like ordinary properties (possibly more
+  than once); symbol-keyed and non-enumerable properties are not data and are
+  ignored.
 - `saxes` has had no release since 2022.

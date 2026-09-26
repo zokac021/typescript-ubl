@@ -131,6 +131,15 @@ export function defineDocument<Canonical, Input>(document: UblDocumentDescriptor
 	return deepFreeze(document);
 }
 
+/**
+ * Deepest element nesting the runtime accepts. Real documents nest a few
+ * dozen levels; the cap keeps validation and serialization of hostile values
+ * from exhausting the call stack (in browsers too), and bounds the parser's
+ * work on hostile XML, extension content included. libxml2 uses the same
+ * default limit.
+ */
+export const MAX_NESTING_DEPTH = 256;
+
 export function typeIdOf(name: XmlName): TypeId {
 	return `{${name.namespaceURI}}${name.localName}`;
 }

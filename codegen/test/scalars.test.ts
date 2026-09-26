@@ -36,7 +36,9 @@ const CASES: readonly Case[] = [
 	...valid("language", "en", "sr-Latn", "en-US", "x-private", "i-klingon", "abcdefgh-12345678"),
 	...invalid("language", "scalar.language", "", "en_US", "abcdefghi", "en-", "-en", "en--US", "en-123456789", "ćr"),
 	...valueSpace("language", "scalar.whitespace", " en", "en "),
-	...valid("anyURI", "urn:test", "https://example.com/a?b=c#d", "relative/path", "", "%20", "a b"),
+	...valid("anyURI", "urn:test", "https://example.com/a?b=c#d", "relative/path", "", "%20", "a b", "#", "a:", "./a:b", "http://[::1]/", "a|b"),
+	// Regression (Phase 4): structure the XLink escaping cannot repair.
+	...invalid("anyURI", "scalar.anyURI", "a#b#c", "##", "1abc:x", ":a", "a[b]", "http://[x/"),
 	...valid("base64Binary", "", "AAAA", "QQ==", "QUI=", "QUJD", "QU JD", "Q U J D", "AAAAAAAA", "+/+/"),
 	...invalid("base64Binary", "scalar.base64Binary", "Q", "QQ=", "QQ==QQ==", "Q===", "QR==", "QUK=", "@@@@", "AAA", "A=AA"),
 	...valueSpace("base64Binary", "scalar.whitespace", "QUJD ", " QUJD", "QU  JD"),
@@ -44,6 +46,9 @@ const CASES: readonly Case[] = [
 	...invalid("decimal", "scalar.decimal", "", ".", "+", "-", "1e3", "1E3", "1.2.3", "1,5", "--1", "0x10", "Infinity", "NaN"),
 	...valueSpace("decimal", "scalar.whitespace", " 1", "1 "),
 	...valid("date", "2024-05-01", "2024-02-29", "2000-02-29", "1600-02-29", "2024-05-01Z", "2024-05-01+02:00", "2024-05-01-14:00", "2024-05-01+14:00", "12345-01-01", "-0044-03-15"),
+	// Regression (Phase 4): the leap-year rule applies to the year value as written.
+	...valid("date", "-0004-02-29", "-0044-02-29", "-0400-02-29"),
+	...invalid("date", "scalar.date", "-0001-02-29", "-0100-02-29"),
 	...invalid("date", "scalar.date", "2023-02-29", "1900-02-29", "2100-02-29", "2024-13-01", "2024-00-10", "2024-04-31", "2024-01-32", "0000-01-01", "02024-01-01", "2024-5-1", "24-05-01", "2024-05-01+14:01", "2024-05-01+15:00", "2024-05-01+02:60", "2024-05-01T00:00:00", ""),
 	...valid("time", "24:00:00", "00:00:00", "23:59:59", "23:59:59.123456", "12:00:00Z", "12:00:00-05:30", "12:00:00.5+14:00"),
 	...invalid("time", "scalar.time", "24:00:01", "25:00:00", "12:60:00", "12:00:60", "1:00:00", "12:00", "12:00:00.", "12:00:00+1:00", "12:00:00+14:30", ""),

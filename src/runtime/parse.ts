@@ -9,7 +9,9 @@
  *
  * Security: a DOCTYPE is rejected outright, so no DTD, entity declaration or
  * external resource is ever read; saxes itself expands only the five
- * predefined entities and character references, and does no I/O.
+ * predefined entities and character references, and does no I/O. Nesting is
+ * capped at MAX_NESTING_DEPTH elements, including extension content, which
+ * bounds saxes' per-element namespace lookup.
  *
  * Only `xsi:schemaLocation` and `xsi:noNamespaceSchemaLocation` (schema
  * location hints, allowed on any element) are accepted and ignored.
@@ -31,9 +33,10 @@ import type {
 	UblDocumentDescriptor,
 	XmlName,
 } from "./schema.js";
+import { MAX_NESTING_DEPTH } from "./schema.js";
 import type { RawXml } from "./types.js";
 import { qualified } from "./validate.js";
-import { XMLNS_NAMESPACE, XSI_NAMESPACE, escapeAttribute, escapeText } from "./xml.js";
+import { XMLNS_NAMESPACE, XSI_NAMESPACE, escapeAttribute, escapeText, isNCName } from "./xml.js";
 
 export type UblParseErrorCode =
 	| "xml.malformed"
@@ -45,6 +48,7 @@ export type UblParseErrorCode =
 	| "element.duplicate"
 	| "element.missing"
 	| "content.text"
+	| "structure.depth"
 	| "attribute.unknown"
 	| "attribute.unsupported"
 	| "attribute.missing"
@@ -189,6 +193,20 @@ class Parser {
 	// ── Events ────────────────────────────────────────────────────────────
 
 	private openTag(tag: SaxesTagNS): void {
+		// The limit covers foreign (RawXml) content too: saxes resolves prefixes by walking the open-element
+		// stack, so unbounded nesting costs quadratic time. libxml2 applies the same default limit.
+		if (this.scopes.length > MAX_NESTING_DEPTH) {
+			this.fail("structure.depth", `Elements are nested more than ${MAX_NESTING_DEPTH} levels deep.`, this.frames[this.frames.length - 1]);
+		}
+		// saxes accepts a declared prefix that is not an NCName as long as it is unused (xmlns:1a="…"); Namespaces in XML does not.
+		// Likewise a local part that is not an NCName (cac:1Item): a valid XML name, but not a QName.
+		for (const prefix of Object.keys(tag.ns)) {
+			if (prefix !== "" && !isNCName(prefix)) this.fail("xml.malformed", `Malformed XML: xmlns:${prefix} does not declare an NCName prefix.`);
+		}
+		if (!isNCName(tag.local)) this.fail("xml.malformed", `Malformed XML: ${tag.name} is not a qualified name.`);
+		for (const attribute of Object.values(tag.attributes)) {
+			if (attribute.uri !== XMLNS_NAMESPACE && !isNCName(attribute.local)) this.fail("xml.malformed", `Malformed XML: ${attribute.name} is not a qualified name.`);
+		}
 		const parentScope = this.scopes[this.scopes.length - 1]!;
 		this.scopes.push(Object.keys(tag.ns).length ? { ...parentScope, ...tag.ns } : parentScope);
 		if (this.capture) return this.captureOpen(tag);

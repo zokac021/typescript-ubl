@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "tsc -p codegen/tsconfig.json && tsc -p tsconfig.json && node --test \"codegen/test/**/*.test.ts\"",
-    "codegen": "node codegen/generate.ts"
+    "codegen": "node codegen/generate.ts",
+    "prepack": "npm run build"
   },
   "keywords": [],
   "author": "",
@@ -22,5 +23,10 @@
   "sideEffects": false,
   "dependencies": {
     "saxes": "6.0.0"
-  }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
 }

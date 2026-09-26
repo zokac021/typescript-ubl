@@ -44,3 +44,53 @@ export async function mapConcurrent<T, R>(items: readonly T[], limit: number, jo
 	await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 	return results;
 }
+
+export interface BatchItem {
+	readonly schema: string;
+	readonly xml: string;
+}
+
+/**
+ * Validate many documents with as few xmllint processes as possible: one per
+ * schema (the schema is compiled once), in chunks. Results keep input order.
+ */
+export async function validateBatch(items: readonly BatchItem[], chunk = 400): Promise<XmllintResult[]> {
+	const dir = mkdtempSync(join(tmpdir(), "ubl-xmllint-batch-"));
+	const results: XmllintResult[] = new Array(items.length);
+	try {
+		const bySchema = new Map<string, number[]>();
+		items.forEach((item, i) => {
+			const list = bySchema.get(item.schema) ?? [];
+			list.push(i);
+			bySchema.set(item.schema, list);
+		});
+		const jobs: { schema: string; indexes: number[] }[] = [];
+		for (const [schema, indexes] of bySchema) for (let i = 0; i < indexes.length; i += chunk) jobs.push({ schema, indexes: indexes.slice(i, i + chunk) });
+		await mapConcurrent(jobs, 6, (job) => {
+			const files = job.indexes.map((i) => {
+				const file = join(dir, `d${i}.xml`);
+				writeFileSync(file, items[i]!.xml);
+				return file;
+			});
+			return new Promise<void>((resolve) => {
+				execFile("xmllint", ["--noout", "--nonet", "--schema", job.schema, ...files], { maxBuffer: 64 * 1024 * 1024 }, (_error, stdout, stderr) => {
+					const output = `${stdout}${stderr}`;
+					job.indexes.forEach((index, n) => {
+						const file = files[n]!;
+						const lines = output.split("\n").filter((l) => l.startsWith(`${file}:`) || l.startsWith(`${file} `));
+						results[index] = { valid: lines.includes(`${file} validates`), output: lines.join("\n").replaceAll(file, `doc${index}.xml`) };
+					});
+					resolve();
+				});
+			});
+		});
+		return results;
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
+
+/** Line numbers xmllint reports errors on, for a document with one test value per line. */
+export function errorLines(output: string): Set<number> {
+	return new Set([...output.matchAll(/^[^:\n]+:(\d+): /gm)].map((m) => Number(m[1])));
+}

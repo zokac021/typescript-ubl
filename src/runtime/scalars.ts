@@ -121,13 +121,29 @@ const LEXICAL: Readonly<Record<Exclude<ScalarKind, "boolean">, (value: string) =
 };
 
 /**
- * §3.2.17: xs:anyURI accepts any string that, after escaping the characters
- * URIs do not allow, is a URI reference. That escaping makes almost every
- * string acceptable; what it cannot repair is a `%` that does not start a
- * `%XX` escape. Nothing stricter (absolute, HTTP, …) is required.
+ * §3.2.17: xs:anyURI accepts any string that, after the XLink escaping of
+ * characters URIs do not allow, is a URI reference (RFC 2396 as amended by
+ * RFC 2732). The escaping repairs spaces and other disallowed characters, but
+ * not the structure, so these remain errors:
+ * - a `%` that does not start a `%XX` escape;
+ * - more than one `#` (the fragment cannot contain `#`);
+ * - a first segment containing `:` that is not a valid scheme (`1a:b`, `:a`);
+ * - `[` or `]` outside an IPv6 literal host (RFC 2732).
+ * Nothing stricter (absolute, HTTP, …) is required.
  */
 function isAnyUri(value: string): boolean {
-	return !/%(?![0-9A-Fa-f]{2})/.test(value);
+	if (/%(?![0-9A-Fa-f]{2})/.test(value)) return false;
+	const hash = value.indexOf("#");
+	if (hash >= 0 && value.includes("#", hash + 1)) return false;
+	const reference = hash >= 0 ? value.slice(0, hash) : value;
+	const firstSegment = /^[^/?]*/.exec(reference)![0];
+	const colon = firstSegment.indexOf(":");
+	if (colon >= 0 && !/^[A-Za-z][A-Za-z0-9+.-]*$/.test(firstSegment.slice(0, colon))) return false;
+	if (/[[\]]/.test(value)) {
+		const withoutLiteral = value.replace(/^((?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\/(?:[^@/?#[\]]*@)?)\[[0-9A-Fa-f:.]+\]/, "$1");
+		if (/[[\]]/.test(withoutLiteral)) return false;
+	}
+	return true;
 }
 
 /**
@@ -197,13 +213,13 @@ function isDateTime(value: string): boolean {
 }
 
 /**
- * XSD 1.0 numbers years without a year zero (-0001 is 1 BCE); the leap-year
- * rule is applied to the astronomical year, where 1 BCE is year 0.
+ * §3.2.7.1: February has 29 days when the year value is divisible by 400, or
+ * by 4 but not by 100. The rule applies to the year value as written, negative
+ * years included (-0004 is a leap year; -0001 is not).
  */
 function daysInMonth(year: number, month: number): number {
 	if (month === 2) {
-		const astronomical = year < 0 ? year + 1 : year;
-		const leap = (astronomical % 4 === 0 && astronomical % 100 !== 0) || astronomical % 400 === 0;
+		const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 		return leap ? 29 : 28;
 	}
 	return month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;

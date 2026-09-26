@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- One element per XML Schema built-in type the runtime supports; an oracle for scalar rules. -->
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test:scalars" elementFormDefault="qualified">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:s="urn:test:scalars" targetNamespace="urn:test:scalars" elementFormDefault="qualified">
   <xs:element name="string" type="xs:string"/>
   <xs:element name="normalizedString" type="xs:normalizedString"/>
   <xs:element name="language" type="xs:language"/>
@@ -11,4 +11,21 @@
   <xs:element name="date" type="xs:date"/>
   <xs:element name="time" type="xs:time"/>
   <xs:element name="dateTime" type="xs:dateTime"/>
+  <!-- Many values in one document, one per line, for corpus testing. -->
+  <xs:element name="corpus">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element ref="s:string"/>
+        <xs:element ref="s:normalizedString"/>
+        <xs:element ref="s:language"/>
+        <xs:element ref="s:anyURI"/>
+        <xs:element ref="s:base64Binary"/>
+        <xs:element ref="s:boolean"/>
+        <xs:element ref="s:decimal"/>
+        <xs:element ref="s:date"/>
+        <xs:element ref="s:time"/>
+        <xs:element ref="s:dateTime"/>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
 </xs:schema>
