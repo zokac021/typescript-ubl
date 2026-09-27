@@ -273,7 +273,7 @@ describe("runtime descriptors", () => {
 	describe("package root", () => {
 		it("exports documents and the runtime API as values, and no namespace objects", () => {
 			const exported = Object.keys(ubl).sort();
-			const api = ["UblParseError", "UblSerializationError", "UblValidationError", "isUblDocument", "parseUbl", "parseUblAs", "serializeUbl", "validateUbl"];
+			const api = ["UblParseError", "UblSerializationError", "UblValidationError", "isUblDocument", "parseUbl", "parseUblAs", "rawXmlAttributeValue", "rawXmlChildElements", "rawXmlElementText", "readRawXml", "serializeUbl", "validateUbl"];
 			assert.equal(exported.length, 65 + api.length);
 			assert.deepEqual(exported, [...model.documents.map((d) => d.name), ...api].sort());
 			for (const name of ["cac", "cbc", "udt", "ext", "ublTypes", "ublDocuments"]) assert.equal(name in ubl, false, name);

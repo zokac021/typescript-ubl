@@ -36,6 +36,36 @@ export function isNCName(name: string): boolean {
 	return NCNAME.test(name);
 }
 
+/**
+ * The Namespaces in XML name rules saxes leaves unchecked: every declared
+ * prefix and every element and attribute local part must be an NCName. saxes
+ * accepts, for example, an unused `xmlns:1a="…"` or `cac:1Item`. Returns the
+ * problem, or undefined.
+ */
+export function qualifiedNameProblem(tag: {
+	readonly name: string;
+	readonly local: string;
+	readonly ns: Readonly<Record<string, string>>;
+	readonly attributes: Readonly<Record<string, { readonly name: string; readonly local: string; readonly uri: string }>>;
+}): string | undefined {
+	for (const prefix of Object.keys(tag.ns)) {
+		if (prefix !== "" && !isNCName(prefix)) return `xmlns:${prefix} does not declare an NCName prefix.`;
+	}
+	if (!isNCName(tag.local)) return `${tag.name} is not a qualified name.`;
+	for (const attribute of Object.values(tag.attributes)) {
+		if (attribute.uri !== XMLNS_NAMESPACE && !isNCName(attribute.local)) return `${attribute.name} is not a qualified name.`;
+	}
+	return undefined;
+}
+
+/**
+ * A binding RawXml may carry: "" (the default namespace) to any URI, "" to
+ * mean none, or a non-reserved NCName prefix to a non-empty URI.
+ */
+export function isValidNamespaceBinding(prefix: string, uri: unknown): boolean {
+	return typeof uri === "string" && invalidXmlCharIndex(uri) < 0 && (prefix === "" || (isNCName(prefix) && prefix !== "xml" && prefix !== "xmlns" && uri !== ""));
+}
+
 /** A prefix a serializer may choose: an NCName outside the reserved `xml…` space. */
 export function isValidPrefix(prefix: string): boolean {
 	return isNCName(prefix) && !/^xml/i.test(prefix);

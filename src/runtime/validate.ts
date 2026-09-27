@@ -21,7 +21,7 @@ import type {
 	XmlName,
 } from "./schema.js";
 import { MAX_NESTING_DEPTH } from "./schema.js";
-import { invalidXmlCharIndex, isNCName } from "./xml.js";
+import { invalidXmlCharIndex, isValidNamespaceBinding } from "./xml.js";
 
 /** Stable, machine-readable issue codes. Messages are for people and may change. */
 export type UblIssueCode =
@@ -235,11 +235,7 @@ class Validator {
 		const namespaces = own(value, "namespaces") as Readonly<Record<string, unknown>>;
 		for (const [prefix, uri] of Object.entries(namespaces)) {
 			const where = join(join(path, "namespaces"), prefix === "" ? '""' : prefix);
-			const valid =
-				typeof uri === "string" &&
-				invalidXmlCharIndex(uri) < 0 &&
-				(prefix === "" || (isNCName(prefix) && prefix !== "xml" && prefix !== "xmlns" && uri !== ""));
-			if (!valid) this.issue("rawXml.namespace", where, xmlPath, "Invalid namespace binding: a prefix must be a non-reserved NCName bound to a non-empty URI; \"\" is the default namespace.");
+			if (!isValidNamespaceBinding(prefix, uri)) this.issue("rawXml.namespace", where, xmlPath, "Invalid namespace binding: a prefix must be a non-reserved NCName bound to a non-empty URI; \"\" is the default namespace.");
 		}
 	}
 }

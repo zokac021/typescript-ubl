@@ -9,6 +9,7 @@ node examples/create-invoice.ts
 node examples/create-despatch-advice.ts
 node examples/parse-unknown-document.ts
 node examples/parse-known-document.ts
+node examples/read-extension-content.ts
 ```
 
 | Example | Shows |
@@ -17,5 +18,6 @@ node examples/parse-known-document.ts
 | `create-despatch-advice.ts` | the same for a `DespatchAdvice` |
 | `parse-unknown-document.ts` | `parseUbl` on XML of unknown type, narrowing with `isUblDocument` |
 | `parse-known-document.ts` | `parseUblAs` for a known document type, and the error for the wrong one |
+| `read-extension-content.ts` | `readRawXml` and its lookups on `ext:ExtensionContent`, by expanded name |
 
 The examples use generic OASIS UBL 2.1 structures only; they do not implement any national or business profile.

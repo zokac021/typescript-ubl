@@ -5,6 +5,8 @@
  * "2024-05-01+02:00". Lexical validation belongs to the runtime validator.
  */
 
+import type { XmlName } from "./schema.js";
+
 /** `xs:decimal` as written in the document, e.g. "1250.50". */
 export type Decimal = string;
 
@@ -30,3 +32,40 @@ export interface RawXml {
 	/** Namespace bindings in scope at the element, prefix → URI ("" for the default namespace). */
 	readonly namespaces: Readonly<Record<string, string>>;
 }
+
+/**
+ * The element a RawXml holds, as read by `readRawXml`: names are expanded
+ * (namespace URI + local name); prefixes are syntax and not kept. Deeply
+ * frozen.
+ */
+export interface RawXmlElement {
+	readonly kind: "element";
+	readonly name: XmlName;
+	/** Attributes in document order. Namespace declarations are not attributes. */
+	readonly attributes: readonly RawXmlAttribute[];
+	/**
+	 * Namespace bindings in scope at this element, prefix → URI ("" for the
+	 * default namespace), for QName-valued content. The always-bound `xml`
+	 * prefix is not listed.
+	 */
+	readonly namespaces: Readonly<Record<string, string>>;
+	/**
+	 * Elements and text in document order. CDATA is text; adjacent text is one
+	 * node. Comments and processing instructions are not data and not listed.
+	 */
+	readonly children: readonly RawXmlNode[];
+}
+
+/** An attribute; an unprefixed attribute is in no namespace (the default namespace does not apply). */
+export interface RawXmlAttribute {
+	readonly name: XmlName;
+	readonly value: string;
+}
+
+/** Character data, with entity and character references resolved; whitespace kept as written. */
+export interface RawXmlText {
+	readonly kind: "text";
+	readonly value: string;
+}
+
+export type RawXmlNode = RawXmlElement | RawXmlText;

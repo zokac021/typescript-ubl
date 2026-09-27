@@ -36,7 +36,7 @@ import type {
 import { MAX_NESTING_DEPTH } from "./schema.js";
 import type { RawXml } from "./types.js";
 import { qualified } from "./validate.js";
-import { XMLNS_NAMESPACE, XSI_NAMESPACE, escapeAttribute, escapeText, isNCName } from "./xml.js";
+import { XMLNS_NAMESPACE, XSI_NAMESPACE, escapeAttribute, escapeText, qualifiedNameProblem } from "./xml.js";
 
 export type UblParseErrorCode =
 	| "xml.malformed"
@@ -200,13 +200,8 @@ class Parser {
 		}
 		// saxes accepts a declared prefix that is not an NCName as long as it is unused (xmlns:1a="…"); Namespaces in XML does not.
 		// Likewise a local part that is not an NCName (cac:1Item): a valid XML name, but not a QName.
-		for (const prefix of Object.keys(tag.ns)) {
-			if (prefix !== "" && !isNCName(prefix)) this.fail("xml.malformed", `Malformed XML: xmlns:${prefix} does not declare an NCName prefix.`);
-		}
-		if (!isNCName(tag.local)) this.fail("xml.malformed", `Malformed XML: ${tag.name} is not a qualified name.`);
-		for (const attribute of Object.values(tag.attributes)) {
-			if (attribute.uri !== XMLNS_NAMESPACE && !isNCName(attribute.local)) this.fail("xml.malformed", `Malformed XML: ${attribute.name} is not a qualified name.`);
-		}
+		const problem = qualifiedNameProblem(tag);
+		if (problem) this.fail("xml.malformed", `Malformed XML: ${problem}`);
 		const parentScope = this.scopes[this.scopes.length - 1]!;
 		this.scopes.push(Object.keys(tag.ns).length ? { ...parentScope, ...tag.ns } : parentScope);
 		if (this.capture) return this.captureOpen(tag);

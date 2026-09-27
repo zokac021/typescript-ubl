@@ -3,7 +3,24 @@
  * exactOptionalPropertyTypes; every `@ts-expect-error` must be a real error.
  */
 
-import { DespatchAdvice, Invoice, ReceiptAdvice, UblParseError, UblValidationError, isUblDocument, parseUbl, parseUblAs, serializeUbl, validateUbl } from "../../../src/index.js";
+import {
+	DespatchAdvice,
+	Invoice,
+	ReceiptAdvice,
+	UblParseError,
+	UblValidationError,
+	isUblDocument,
+	parseUbl,
+	parseUblAs,
+	rawXmlAttributeValue,
+	rawXmlChildElements,
+	rawXmlElementText,
+	readRawXml,
+	serializeUbl,
+	validateUbl,
+} from "../../../src/index.js";
+// @ts-expect-error The RawXml trust mechanism is not public.
+import { createTrustedRawXml, isTrustedRawXml } from "../../../src/index.js";
 import type {
 	CanonicalOf,
 	Decimal,
@@ -13,12 +30,17 @@ import type {
 	InvoiceInput,
 	ParsedUblDocument,
 	RawXml,
+	RawXmlAttribute,
+	RawXmlElement,
+	RawXmlNode,
+	RawXmlText,
 	UblParseErrorCode,
 	SerializeUblOptions,
 	UblIssue,
 	UblValidationResult,
 	ReceiptAdviceInput,
 	UblDocumentDescriptor,
+	XmlName,
 	XsdDate,
 	cac,
 	cbc,
@@ -197,3 +219,42 @@ export const parseErrorCode = (error: unknown): UblParseErrorCode | undefined =>
 
 // @ts-expect-error parseUblAs returns the canonical type, not the Input type's shorthand.
 export const wrongShape: { ID: string } = parseUblAs(DespatchAdvice, xml);
+
+// ── readRawXml: a read-only view of extension content ───────────────────────
+
+export const extensionRoot: RawXmlElement | undefined = raw ? readRawXml(raw) : undefined;
+export const expandedName: XmlName = { namespaceURI: "urn:example", localName: "Entry" };
+export const entries: readonly RawXmlElement[] = extensionRoot ? rawXmlChildElements(extensionRoot, expandedName) : [];
+export const everyChild: readonly RawXmlElement[] = extensionRoot ? rawXmlChildElements(extensionRoot) : [];
+export const idAttribute: string | undefined = extensionRoot ? rawXmlAttributeValue(extensionRoot, { namespaceURI: "", localName: "id" }) : undefined;
+export const ownText: string = extensionRoot ? rawXmlElementText(extensionRoot) : "";
+export const firstAttribute: RawXmlAttribute | undefined = extensionRoot?.attributes[0];
+export const scope: Readonly<Record<string, string>> | undefined = extensionRoot?.namespaces;
+export const textNode: RawXmlText = { kind: "text", value: "x" };
+export function nodeLabel(node: RawXmlNode): string {
+	switch (node.kind) {
+		case "element":
+			return `{${node.name.namespaceURI}}${node.name.localName}`;
+		case "text":
+			return node.value;
+	}
+}
+export const read: RawXmlElement = readRawXml({ xml: "<x/>", namespaces: {} });
+
+// @ts-expect-error The reader's result is read-only.
+read.children.push(textNode);
+
+// @ts-expect-error Names are read-only too.
+read.name.localName = "y";
+
+// @ts-expect-error readRawXml reads RawXml, not an arbitrary string.
+readRawXml("<x/>");
+
+// @ts-expect-error Lookup is by expanded name, not by a prefixed name.
+rawXmlChildElements(read, "p:Entry");
+
+// @ts-expect-error A reader result is not RawXml.
+export const notRawXml: RawXml = read;
+
+// @ts-expect-error It cannot be written back as extension content either.
+export const readAsContent: ext.UBLExtensionTypeInput = { ExtensionContent: read };

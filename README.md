@@ -76,6 +76,34 @@ const parsed = parseUbl(xml); // { document, value }: the root element selects t
 
 The parser uses the same generated metadata to map XML elements and attributes back to their UBL types, independently of the prefixes the XML uses.
 
+### Read extension content
+
+UBL puts foreign XML — signatures, national or profile extensions — in `ext:ExtensionContent`, which is available in all 65 documents. Its content is not part of the UBL schemas, so it is carried as `RawXml` (`{ xml, namespaces }`). `readRawXml` gives a read-only, namespace-aware view of it without knowing its schema:
+
+```ts
+import { rawXmlAttributeValue, rawXmlChildElements, rawXmlElementText, readRawXml } from "typescript-ubl";
+
+const CBC = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2";
+const EXAMPLE = "urn:example:extension";
+
+for (const extension of despatch.UBLExtensions?.UBLExtension ?? []) {
+  const root = readRawXml(extension.ExtensionContent); // exactly one element
+  if (root.name.namespaceURI !== EXAMPLE || root.name.localName !== "Details") continue;
+
+  const version = rawXmlAttributeValue(root, { namespaceURI: "", localName: "version" });
+  for (const reference of rawXmlChildElements(root, { namespaceURI: EXAMPLE, localName: "Reference" })) {
+    const [id] = rawXmlChildElements(reference, { namespaceURI: CBC, localName: "ID" });
+    console.log(version, id && rawXmlElementText(id));
+  }
+}
+```
+
+- Names are expanded names, `{ namespaceURI, localName }`; prefixes are never compared. The bindings in `RawXml.namespaces` apply, so a fragment may use prefixes declared on the document. An unprefixed attribute is in no namespace, whatever the default namespace.
+- The result is plain, deeply frozen data: `RawXmlElement` with `name`, `attributes`, `namespaces` (bindings in scope) and `children` (elements and text in document order). CDATA is text; comments and processing instructions are not data and are not listed.
+- `rawXmlChildElements` returns the direct child elements, optionally only those with a given name, always as an array: how many there may be is for the caller to decide. `rawXmlElementText` returns the element's own text — for `<A>one<B>two</B>three</A>` it is `"onethree"` — untrimmed.
+- It reads; it does not change anything. It is not a DOM or XPath API, and has no way to build or modify XML. Reading does not make caller-built `RawXml` trusted, and a reader result is not `RawXml`, so `serializeUbl` and its `trustRawXml` rule are unaffected.
+- Invalid content throws `UblParseError` (`xml.malformed`, `xml.doctype`, `structure.depth`, `rawXml.invalid`). A DOCTYPE is always refused; no entity is ever fetched.
+
 ### Validate a UBL document
 
 ```ts
@@ -152,7 +180,7 @@ Effective type resolver
 TypeScript types + runtime descriptors
         │
         ▼
-typescript-ubl runtime: validateUbl, serializeUbl, parseUbl
+typescript-ubl runtime: validateUbl, serializeUbl, parseUbl, readRawXml
 ```
 
 XSD parsing and code generation are development-time operations. Applications using `typescript-ubl` do not need the XSD parser or code generator at runtime.

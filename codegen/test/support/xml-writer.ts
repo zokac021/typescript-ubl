@@ -112,14 +112,42 @@ export function semanticTree(el: Element): unknown {
 	return { name: `{${el.namespaceURI ?? ""}}${el.localName}`, attributes: attributes.sort(), children };
 }
 
-/** The meaning of a RawXml value: its element resolved against its namespace bindings. */
-export function rawXmlMeaning(raw: { xml: string; namespaces: Readonly<Record<string, string>> }): unknown {
+/** The element of a RawXml value, parsed by xmldom under its namespace bindings. */
+export function rawXmlDomElement(raw: { xml: string; namespaces: Readonly<Record<string, string>> }): Element {
 	const declarations = Object.entries(raw.namespaces)
 		.map(([p, u]) => (p ? ` xmlns:${p}="${escAttr(u)}"` : ` xmlns="${escAttr(u)}"`))
 		.join("");
 	const wrapper = parseDom(`<wrapper${declarations}>${raw.xml}</wrapper>`).documentElement!;
-	const element = [...Array.from({ length: wrapper.childNodes.length }, (_, i) => wrapper.childNodes.item(i))].find((n) => n?.nodeType === 1) as Element;
-	return { tree: semanticTree(element), bindings: raw.namespaces };
+	return [...Array.from({ length: wrapper.childNodes.length }, (_, i) => wrapper.childNodes.item(i))].find((n) => n?.nodeType === 1) as Element;
+}
+
+/** The meaning of a RawXml value: its element resolved against its namespace bindings. */
+export function rawXmlMeaning(raw: { xml: string; namespaces: Readonly<Record<string, string>> }): unknown {
+	return { tree: semanticTree(rawXmlDomElement(raw)), bindings: raw.namespaces };
+}
+
+/**
+ * What readRawXml should see in an xmldom element: expanded names, attributes
+ * in document order (namespace declarations excluded), and element and text
+ * children, where CDATA is text and comments and processing instructions
+ * neither appear nor split text.
+ */
+export function readerView(el: Element): unknown {
+	const attributes: string[] = [];
+	for (let i = 0; i < el.attributes.length; i++) {
+		const a = el.attributes.item(i)!;
+		if (a.namespaceURI !== XMLNS_NS) attributes.push(`{${a.namespaceURI ?? ""}}${a.localName ?? a.name}=${a.value}`);
+	}
+	const children: unknown[] = [];
+	for (let node: Node | null = el.firstChild; node; node = node.nextSibling) {
+		if (node.nodeType === 3 || node.nodeType === 4) {
+			const value = node.nodeValue ?? "";
+			const last = children[children.length - 1];
+			if (typeof last === "string") children[children.length - 1] = last + value;
+			else if (value) children.push(value);
+		} else if (node.nodeType === 1) children.push(readerView(node as Element));
+	}
+	return { name: `{${el.namespaceURI ?? ""}}${el.localName}`, attributes, children };
 }
 
 /** A canonical value with every RawXml replaced by its meaning, for semantic comparison. */

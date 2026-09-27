@@ -179,7 +179,7 @@ src/
   index.ts                  public exports
   ubl.ts                    parseUbl, bound to the 65-document registry
   runtime/                  hand-written, generic, browser-compatible
-    types.ts                Decimal, DecimalInput, XsdDate, XsdTime, XsdDateTime, RawXml
+    types.ts                Decimal, DecimalInput, XsdDate, XsdTime, XsdDateTime, RawXml, RawXmlElement…
     schema.ts               descriptor types, registries, defineDocument
     scalars.ts              XML Schema lexical rules, whitespace, decimal formatting
     xml.ts                  XML characters, names, escaping
@@ -187,6 +187,7 @@ src/
     serialize.ts            serializeUbl
     parse.ts                parseUblAs, parseUblWith, UblParseError
     raw-xml.ts              RawXml trust
+    raw-xml-reader.ts       readRawXml and its lookups
   generated/                written by `npm run codegen`; never edited by hand
     cac.ts cbc.ts udt.ts ext.ts   type-only namespace modules
     documents/*.ts                65 files: canonical type, Input type, descriptor value
@@ -339,6 +340,69 @@ namespace bindings — not byte preservation. Prefixes, quoting, whitespace
 between elements, attribute order and declaration placement may change, so an
 enveloped XML signature does not survive parse → serialize. Verify signatures
 on the original bytes.
+
+## Reading RawXml
+
+`readRawXml(raw)` gives a read-only, namespace-aware view of the element a
+`RawXml` holds, for callers that need to read extension content without a
+schema for it. It is generic: it knows no UBL document, no extension and no
+national profile, and it is not a DOM, XPath or XML-building API.
+
+```ts
+interface RawXmlElement {
+  readonly kind: "element";
+  readonly name: XmlName;                               // { namespaceURI, localName }
+  readonly attributes: readonly RawXmlAttribute[];      // { name: XmlName, value }
+  readonly namespaces: Readonly<Record<string, string>>; // bindings in scope here
+  readonly children: readonly RawXmlNode[];             // RawXmlElement | RawXmlText
+}
+```
+
+- **One element, parsed on its own.** Every call parses `raw.xml` with
+  `saxes` (namespace-aware, not in fragment mode) under `raw.namespaces` as
+  the in-scope bindings, so a fragment may use prefixes declared on the
+  document, as parser-produced RawXml does. Without a `""` binding an
+  unprefixed element is in no namespace, which is how `serializeUbl` writes
+  it. Exactly one element is accepted: empty input, several elements, text,
+  comments, processing instructions, an XML declaration or a byte order mark
+  around it are `rawXml.invalid`.
+- **Expanded names.** Element and attribute names are `XmlName`s; the prefix
+  is not kept. The default namespace does not apply to attributes. Namespace
+  declarations are not attributes; `namespaces` lists the bindings in scope at
+  each element (without the always-bound `xml`) for QName-valued content.
+- **Content.** Children are elements and text in document order. CDATA is
+  text; entity and character references are resolved; adjacent text is one
+  node; whitespace is kept. Comments and processing instructions are parsed
+  but are not data, as in `parseUbl`, and do not split text.
+- **Lookups.** `rawXmlChildElements(element, name?)` returns the direct child
+  elements, filtered by expanded name, always as an array: the reader has no
+  schema, so cardinality is the caller's decision. `rawXmlAttributeValue`
+  returns one value or `undefined` (XML allows one attribute per expanded
+  name). `rawXmlElementText` joins the element's direct text children only —
+  `"onethree"` for `<A>one<B>two</B>three</A>` — without trimming.
+- **Immutability.** The result is deeply frozen, as are lookup results; the
+  input is neither changed nor frozen. There is no cache: each call parses.
+- **Errors.** `UblParseError` with existing codes: `xml.malformed`
+  (well-formedness, unbound prefixes, duplicate attributes, invalid
+  declarations, non-NCName names), `xml.doctype`, `structure.depth`
+  (`MAX_NESTING_DEPTH`), and `rawXml.invalid` (not exactly one element, or an
+  invalid binding in `raw.namespaces`). Bindings follow the rule `validateUbl`
+  applies to `RawXml.namespaces`, plus the Namespaces in XML reservation of
+  the `xml` and `xmlns` namespace names. `line` and `column` are positions in
+  `raw.xml`. A value that is not RawXml at all is a `TypeError`.
+- **Security.** The same rules as `parseUbl`: any DOCTYPE is rejected, so no
+  DTD, entity declaration or external resource is ever read; only predefined
+  entities and character references are expanded; the runtime does no I/O.
+- **Trust is untouched.** The reader neither consults nor grants trust: it
+  reads parser-produced and caller-built RawXml alike, and reading a
+  caller-built value does not make it trusted. Its result is a different type
+  from `RawXml` (it has no `xml`), so it cannot be serialized in place of one;
+  `validateUbl` reports it as `rawXml.shape`. `serializeUbl` and `trustRawXml`
+  behave as before.
+
+Reading is how a caller can check that caller-built RawXml is one well-formed
+element before vouching for it with `trustRawXml: true`; `validateUbl` itself
+still checks only what it can without a parser.
 
 ## Runtime compatibility
 

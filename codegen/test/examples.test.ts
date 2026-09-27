@@ -15,7 +15,7 @@ const programs = readdirSync(EXAMPLES).filter((f) => f.endsWith(".ts")).sort();
 
 describe("examples", () => {
 	it("cover the documented scenarios", () => {
-		assert.deepEqual(programs, ["create-despatch-advice.ts", "create-invoice.ts", "parse-known-document.ts", "parse-unknown-document.ts"]);
+		assert.deepEqual(programs, ["create-despatch-advice.ts", "create-invoice.ts", "parse-known-document.ts", "parse-unknown-document.ts", "read-extension-content.ts"]);
 	});
 
 	it("import only the public package entry point", () => {

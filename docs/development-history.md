@@ -638,6 +638,31 @@ State at the end of Phase 5: 276 tests, all passing when the OASIS
 distribution is available, otherwise 275 passing and 1 explicitly skipped;
 `npm run build` and `npm pack` passing; version 0.1.0, since published to npm.
 
+## Version 0.2.0 — RawXml reader
+
+`ext:ExtensionContent` is the only wildcard in the UBL 2.1 model, and it is
+available in all 65 documents; its content was carried as `RawXml` but could
+not be read without a caller-side XML parser. Version 0.2.0 adds
+`readRawXml` with `rawXmlChildElements`, `rawXmlAttributeValue` and
+`rawXmlElementText`: a generic, namespace-aware, read-only view of that
+element, matched by expanded name, with no knowledge of any extension or
+national profile. It is not a DOM or XPath API and cannot build or modify XML.
+
+The reader parses each RawXml on its own with the existing `saxes`
+dependency, under the same DOCTYPE, entity and nesting rules as the document
+parser, and reports errors as `UblParseError` with existing codes. The result
+is deeply frozen. `RawXml`, its trust model, `trustRawXml` and the behaviour
+of `parseUbl`, `serializeUbl` and `validateUbl` are unchanged; the NCName and
+namespace-binding checks the parser and validator already made were moved to
+shared helpers without changing them. No runtime dependency was added.
+
+Tests check the reader against an xmldom oracle, read the extensions of every
+document's rich instance and of the OASIS enveloped-signature example, and
+cover namespaces, content, errors, immutability and the trust boundary.
+
+State at 0.2.0: 335 tests, all passing when the OASIS distribution is
+available, otherwise 334 passing and 1 explicitly skipped.
+
 ## Engineering lessons
 
 1. Do not trust generated code merely because it compiles.

@@ -8,10 +8,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { DespatchAdvice, UblParseError, UblValidationError, parseUbl, parseUblAs, serializeUbl } from "../../../dist/index.js";
+import { DespatchAdvice, UblParseError, UblValidationError, parseUbl, parseUblAs, readRawXml, serializeUbl } from "../../../dist/index.js";
+import type { RawXmlNode } from "../../../dist/index.js";
 import type { RawXml } from "../../../dist/runtime/types.js";
 import { UBL_XSD_DIR } from "../../ubl.ts";
-import { rawXmlMeaning } from "../support/xml-writer.ts";
+import { rawXmlDomElement, rawXmlMeaning, readerView } from "../support/xml-writer.ts";
 import { XMLLINT_SKIP, validateBatch } from "../support/xmllint.ts";
 
 const DA = "urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2";
@@ -62,6 +63,26 @@ describe("RawXml namespace torture", () => {
 		xsd.forEach((r, i) => {
 			if (!r.valid) problems.push(`${Object.keys(CASES)[Math.floor(i / 2)]} (${i % 2 ? "reserialized" : "input"}): ${r.output.slice(0, 200)}`);
 		});
+		assert.deepEqual(problems, []);
+	});
+
+	it("readRawXml reads every fragment as xmldom does, before and after a round trip", () => {
+		const view = (node: RawXmlNode): unknown =>
+			node.kind === "text"
+				? node.value
+				: {
+						name: `{${node.name.namespaceURI}}${node.name.localName}`,
+						attributes: node.attributes.map((a) => `{${a.name.namespaceURI}}${a.name.localName}=${a.value}`),
+						children: node.children.map(view),
+					};
+		const problems: string[] = [];
+		for (const [label, xml] of Object.entries(CASES)) {
+			const first = contentOf(parseUblAs(DespatchAdvice, xml));
+			const second = contentOf(parseUblAs(DespatchAdvice, serializeUbl(DespatchAdvice, parseUblAs(DespatchAdvice, xml))));
+			const oracle = JSON.stringify(readerView(rawXmlDomElement(first)));
+			if (JSON.stringify(view(readRawXml(first))) !== oracle) problems.push(`${label}: differs from xmldom`);
+			if (JSON.stringify(view(readRawXml(second))) !== oracle) problems.push(`${label}: differs after a round trip`);
+		}
 		assert.deepEqual(problems, []);
 	});
 
