@@ -4,7 +4,7 @@ A TypeScript library for working with **OASIS Universal Business Language (UBL) 
 
 The goal of `typescript-ubl` is to provide a strongly typed, namespace-aware implementation of the complete UBL 2.1 specification for TypeScript and Node.js.
 
-> **Status:** Version 0.1.0 is prepared for release but not yet published to npm. As a 0.x release, the API may still change.
+> **Status:** Version 0.1.0 is published on npm. As a 0.x release, the API may still change.
 
 All 65 OASIS UBL 2.1 document types are generated from the official schemas.
 
@@ -30,8 +30,6 @@ The project is intentionally **country-neutral**.
 Country-specific requirements, extensions, code lists and validation rules should be implemented in separate packages built on top of `typescript-ubl`.
 
 ## Installation
-
-> The package is not published yet. The following installation command represents the intended usage once 0.1.0 is released.
 
 ```bash
 npm install typescript-ubl
@@ -183,7 +181,7 @@ The schema processing, code generation and runtime are implemented and tested ag
 - adversarial and differential testing against the official OASIS schemas (Phase 4)
 - an npm package limited to the compiled library, verified by installing the packed tarball in clean TypeScript and JavaScript projects (Phase 5)
 
-Version 0.1.0 is prepared for release; publishing it to npm is the remaining step.
+Version 0.1.0 is published on npm.
 
 ## Verification
 
@@ -275,7 +273,7 @@ Verify the runtime against the official OASIS UBL 2.1 schemas and try to break i
 - Hostile XML and JavaScript input
 - Clean-consumer package test
 
-### Phase 5 — Package release ✅ prepared for 0.1.0
+### Phase 5 — Package release ✅
 
 Prepare the library for public use.
 
@@ -283,7 +281,7 @@ Prepare the library for public use.
 - Package limited to README, LICENSE, `package.json` and compiled `dist/`
 - Clean-install verification from the packed tarball
 - Usage examples
-- npm release (pending)
+- npm release (0.1.0)
 
 The goal is not merely to generate TypeScript interfaces from XSD files. The library is intended to provide a complete, namespace-aware UBL 2.1 runtime for creating, parsing, serializing and validating documents while keeping country-specific and business-specific rules outside the core package.
 
