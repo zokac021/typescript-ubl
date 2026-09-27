@@ -4,7 +4,7 @@ A TypeScript library for working with **OASIS Universal Business Language (UBL) 
 
 The goal of `typescript-ubl` is to provide a strongly typed, namespace-aware implementation of the complete UBL 2.1 specification for TypeScript and Node.js.
 
-> **Status:** Version 0.1.0 is published on npm. As a 0.x release, the API may still change.
+> **Status:** Version 0.2.0 is published on npm. As a 0.x release, the API may still change.
 
 All 65 OASIS UBL 2.1 document types are generated from the official schemas.
 
@@ -209,7 +209,7 @@ The schema processing, code generation and runtime are implemented and tested ag
 - adversarial and differential testing against the official OASIS schemas (Phase 4)
 - an npm package limited to the compiled library, verified by installing the packed tarball in clean TypeScript and JavaScript projects (Phase 5)
 
-Version 0.1.0 is published on npm.
+Version 0.2.0 is published on npm.
 
 ## Verification
 
