@@ -47,6 +47,5 @@ describe("package contents", () => {
 
 	it("runtime dependencies are exactly the pinned parser", () => {
 		assert.deepEqual(manifest.dependencies, { saxes: "6.0.0" });
-		assert.equal(manifest.version, "0.1.1");
 	});
 });

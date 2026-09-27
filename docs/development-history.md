@@ -570,8 +570,8 @@ explicitly skipped; `npm run build` passing.
 
 Phase 5 prepared version 0.1.0 for publication. It did not change the runtime
 or the generated model; it changed what the package exposes and ships, and how
-that is verified. Preparation is not publication: at the end of the phase the
-package is versioned 0.1.0, packed and tested, but not yet published to npm.
+that is verified. Preparation was separate from publication: the phase ended with the
+package versioned 0.1.0, packed and tested; version 0.1.0 was then published to npm.
 
 **Explicit exports map.** `package.json` declares `exports` with only `"."`
 (`types` and `default` pointing at `dist/index.d.ts` and `dist/index.js`) and
@@ -636,7 +636,7 @@ or later (type stripping); the package itself does not.
 
 State at the end of Phase 5: 276 tests, all passing when the OASIS
 distribution is available, otherwise 275 passing and 1 explicitly skipped;
-`npm run build` and `npm pack` passing; version 0.1.0, not published.
+`npm run build` and `npm pack` passing; version 0.1.0, since published to npm.
 
 ## Engineering lessons
 
