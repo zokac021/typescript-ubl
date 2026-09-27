@@ -309,7 +309,7 @@ Prepare the library for public use.
 - Package limited to README, LICENSE, `package.json` and compiled `dist/`
 - Clean-install verification from the packed tarball
 - Usage examples
-- npm release (0.1.0)
+- npm release (0.2.0)
 
 The goal is not merely to generate TypeScript interfaces from XSD files. The library is intended to provide a complete, namespace-aware UBL 2.1 runtime for creating, parsing, serializing and validating documents while keeping country-specific and business-specific rules outside the core package.
 
