@@ -1,6 +1,6 @@
 {
   "name": "typescript-ubl",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Strongly typed OASIS UBL 2.1 for TypeScript: generated types for all 65 document types, with validation, XML serialization and XML parsing.",
   "keywords": [
     "ubl",
