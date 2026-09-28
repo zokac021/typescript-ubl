@@ -186,8 +186,8 @@ src/
     validate.ts             validateUbl
     serialize.ts            serializeUbl
     parse.ts                parseUblAs, parseUblWith, UblParseError
-    raw-xml.ts              RawXml trust
-    raw-xml-reader.ts       readRawXml and its lookups
+    raw-xml.ts              RawXml trust; rebuilding an element from parser events
+    raw-xml-reader.ts       readRawXml and its lookups; parseRawXml
   generated/                written by `npm run codegen`; never edited by hand
     cac.ts cbc.ts udt.ts ext.ts   type-only namespace modules
     documents/*.ts                65 files: canonical type, Input type, descriptor value
@@ -333,7 +333,8 @@ the parser is trusted: it is frozen and registered in a module-private
 `WeakSet`. Trust belongs to that object identity, not to its contents: a
 spread, `Object.assign`, `structuredClone` or JSON copy is untrusted again, an
 object inheriting from it is not RawXml at all, and there is no public API to
-mark an object as trusted.
+mark an object as trusted. The only other source of trusted RawXml is
+`parseRawXml` (below), which also rebuilds the element from parser events.
 
 The goal is semantic preservation — expanded names, text, hierarchy and
 namespace bindings — not byte preservation. Prefixes, quoting, whitespace
@@ -400,9 +401,25 @@ interface RawXmlElement {
   `validateUbl` reports it as `rawXml.shape`. `serializeUbl` and `trustRawXml`
   behave as before.
 
-Reading is how a caller can check that caller-built RawXml is one well-formed
-element before vouching for it with `trustRawXml: true`; `validateUbl` itself
-still checks only what it can without a parser.
+## Writing RawXml: parseRawXml
+
+`parseRawXml(xml, namespaces = {})` is the checked way from a string to
+`RawXml` the serializer writes without `trustRawXml`, e.g. extension content
+built by a profile package. It runs the reader above over `xml`, with
+`namespaces` as the bindings in scope around it, so it accepts exactly what
+`readRawXml` accepts and fails with the same codes. The same parser events
+also feed the writer the document parser uses for extension content
+(`RawXmlWriter` in `raw-xml.ts`), and the rebuilt element — not the input
+string — becomes the result: frozen, with the bindings frozen, sorted and
+without `xml`, and registered as trusted. Comments and processing
+instructions inside the element are kept, as `parseUbl` keeps them.
+
+The fragment's context is only its own declarations and `namespaces`: it
+never inherits bindings from the document it is later written into (the
+serializer declares `namespaces` on the wrapper and resets the default
+namespace when there is none). `trustRawXml: true` remains the explicit
+escape hatch for RawXml a caller vouches for without parsing it; the
+trust-granting code (`RawXmlWriter`, `isTrustedRawXml`) is not exported.
 
 ## Runtime compatibility
 

@@ -104,6 +104,33 @@ for (const extension of despatch.UBLExtensions?.UBLExtension ?? []) {
 - It reads; it does not change anything. It is not a DOM or XPath API, and has no way to build or modify XML. Reading does not make caller-built `RawXml` trusted, and a reader result is not `RawXml`, so `serializeUbl` and its `trustRawXml` rule are unaffected.
 - Invalid content throws `UblParseError` (`xml.malformed`, `xml.doctype`, `structure.depth`, `rawXml.invalid`). A DOCTYPE is always refused; no entity is ever fetched.
 
+### Write extension content
+
+To put your own foreign XML into `ext:ExtensionContent`, parse it with `parseRawXml`. The fragment is parsed and validated first — exactly one element, well-formed, namespace-well-formed, no DOCTYPE, within the nesting limit — and the returned `RawXml` is rebuilt from the parser's output, so `serializeUbl` writes it as it is:
+
+```ts
+import { Invoice, parseRawXml, serializeUbl } from "typescript-ubl";
+
+const CBC = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2";
+
+const content = parseRawXml(
+  `<ex:Details xmlns:ex="urn:example:extension" version="1">
+     <cbc:ID>REF-1</cbc:ID>
+   </ex:Details>`,
+  { cbc: CBC }, // bindings for prefixes the fragment uses but does not declare
+);
+
+const xml = serializeUbl(Invoice, {
+  ...invoice,
+  UBLExtensions: { UBLExtension: [{ ExtensionContent: content }] },
+});
+```
+
+- `parseRawXml(xml, namespaces?)` returns checked, trusted `RawXml`. A `{ xml, namespaces }` object you build yourself is untrusted, and `serializeUbl` refuses it with `rawXml.untrusted`. So is a copy of a trusted value (spread, `structuredClone`, JSON): trust belongs to the frozen object `parseRawXml` or `parseUbl` returned.
+- The fragment sees only its own declarations and the `namespaces` you pass; it never inherits bindings from the document it is written into. An unbound prefix is an error.
+- Invalid content throws `UblParseError`, with the same codes as `readRawXml`: `xml.malformed`, `xml.doctype`, `structure.depth`, and `rawXml.invalid` for anything other than exactly one element (empty input, several roots, text, comments or processing instructions around it).
+- Comments and processing instructions inside the element are kept. CDATA becomes escaped text.
+
 ### Validate a UBL document
 
 ```ts
@@ -180,7 +207,7 @@ Effective type resolver
 TypeScript types + runtime descriptors
         │
         ▼
-typescript-ubl runtime: validateUbl, serializeUbl, parseUbl, readRawXml
+typescript-ubl runtime: validateUbl, serializeUbl, parseUbl, readRawXml, parseRawXml
 ```
 
 XSD parsing and code generation are development-time operations. Applications using `typescript-ubl` do not need the XSD parser or code generator at runtime.

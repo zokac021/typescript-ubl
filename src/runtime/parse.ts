@@ -19,7 +19,7 @@
 
 import { SaxesParser } from "saxes";
 import type { SaxesTagNS } from "saxes";
-import { createTrustedRawXml } from "./raw-xml.js";
+import { RawXmlWriter } from "./raw-xml.js";
 import { parseScalar } from "./scalars.js";
 import type { ScalarIssueCode } from "./scalars.js";
 import type {
@@ -36,7 +36,7 @@ import type {
 import { MAX_NESTING_DEPTH } from "./schema.js";
 import type { RawXml } from "./types.js";
 import { qualified } from "./validate.js";
-import { XMLNS_NAMESPACE, XSI_NAMESPACE, escapeAttribute, escapeText, qualifiedNameProblem } from "./xml.js";
+import { XMLNS_NAMESPACE, XSI_NAMESPACE, qualifiedNameProblem } from "./xml.js";
 
 export type UblParseErrorCode =
 	| "xml.malformed"
@@ -139,10 +139,7 @@ type Frame = ComplexFrame | SimpleFrame | RawXmlFrame;
 /** A foreign element being rebuilt, as text, from parser events. */
 interface Capture {
 	readonly frame: RawXmlFrame;
-	readonly out: string[];
-	depth: number;
-	/** The last start tag still lacks its closing `>`. */
-	open: boolean;
+	readonly writer: RawXmlWriter;
 }
 
 const WHITESPACE_ONLY = /^[ \t\r\n]*$/;
@@ -173,8 +170,8 @@ class Parser {
 		sax.on("closetag", (tag) => this.closeTag(tag));
 		sax.on("text", (text) => this.text(text));
 		sax.on("cdata", (text) => this.text(text));
-		sax.on("comment", (text) => this.capture && this.captureContent(`<!--${text}-->`));
-		sax.on("processinginstruction", ({ target, body }) => this.capture && this.captureContent(`<?${target}${body ? ` ${body}` : ""}?>`));
+		sax.on("comment", (text) => this.capture?.writer.comment(text));
+		sax.on("processinginstruction", ({ target, body }) => this.capture?.writer.processingInstruction(target, body));
 		sax.on("error", (error) => {
 			throw error;
 		});
@@ -204,7 +201,7 @@ class Parser {
 		if (problem) this.fail("xml.malformed", `Malformed XML: ${problem}`);
 		const parentScope = this.scopes[this.scopes.length - 1]!;
 		this.scopes.push(Object.keys(tag.ns).length ? { ...parentScope, ...tag.ns } : parentScope);
-		if (this.capture) return this.captureOpen(tag);
+		if (this.capture) return this.capture.writer.openTag(tag);
 
 		const name: XmlName = { namespaceURI: tag.uri, localName: tag.local };
 		const parent = this.frames[this.frames.length - 1];
@@ -224,11 +221,8 @@ class Parser {
 		this.scopes.pop();
 		const capture = this.capture;
 		if (capture) {
-			capture.depth--;
-			capture.out.push(capture.open ? "/>" : `</${tag.name}>`);
-			capture.open = false;
-			if (capture.depth === 0) {
-				capture.frame.value = createTrustedRawXml(capture.out.join(""), withoutReserved(capture.frame.scope));
+			if (capture.writer.closeTag(tag)) {
+				capture.frame.value = capture.writer.toRawXml(capture.frame.scope);
 				this.capture = undefined;
 			}
 			return;
@@ -246,7 +240,7 @@ class Parser {
 	}
 
 	private text(text: string): void {
-		if (this.capture) return this.captureContent(escapeText(text));
+		if (this.capture) return this.capture.writer.text(text);
 		const frame = this.frames[this.frames.length - 1];
 		if (!frame) return;
 		if (frame.kind === "simple") frame.text += text;
@@ -382,32 +376,8 @@ class Parser {
 		if (!admits(wildcard.namespace, wildcard.targetNamespace, name.namespaceURI)) {
 			return this.fail("rawXml.invalid", `Element {${name.namespaceURI}}${name.localName} is not allowed by the wildcard (${wildcard.namespace}).`, frame);
 		}
-		this.capture = { frame, out: [], depth: 0, open: false };
-		this.captureOpen(tag);
-	}
-
-	/**
-	 * Rebuild a start tag from the parsed event: original qualified names,
-	 * namespace declarations where they were, attribute values re-escaped.
-	 */
-	private captureOpen(tag: SaxesTagNS): void {
-		const capture = this.capture!;
-		this.captureContent("");
-		let start = `<${tag.name}`;
-		for (const attribute of Object.values(tag.attributes)) start += ` ${attribute.name}="${escapeAttribute(attribute.value)}"`;
-		capture.out.push(start);
-		capture.open = true;
-		capture.depth++;
-	}
-
-	/** Append content to the fragment, closing a pending start tag first. */
-	private captureContent(text: string): void {
-		const capture = this.capture!;
-		if (capture.open) {
-			capture.out.push(">");
-			capture.open = false;
-		}
-		if (text) capture.out.push(text);
+		this.capture = { frame, writer: new RawXmlWriter() };
+		this.capture.writer.openTag(tag);
 	}
 
 	// ── Errors ────────────────────────────────────────────────────────────
@@ -436,13 +406,4 @@ function admits(constraint: string, targetNamespace: string, namespaceURI: strin
 
 function sameName(a: XmlName, b: XmlName): boolean {
 	return a.namespaceURI === b.namespaceURI && a.localName === b.localName;
-}
-
-/** In-scope bindings minus the always-bound `xml` / `xmlns` prefixes, sorted by prefix so the value is independent of declaration order. */
-function withoutReserved(scope: Readonly<Record<string, string>>): Record<string, string> {
-	return Object.fromEntries(
-		Object.entries(scope)
-			.filter(([prefix]) => prefix !== "xml" && prefix !== "xmlns")
-			.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
-	);
 }

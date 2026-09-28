@@ -10,6 +10,7 @@ import {
 	UblParseError,
 	UblValidationError,
 	isUblDocument,
+	parseRawXml,
 	parseUbl,
 	parseUblAs,
 	rawXmlAttributeValue,
@@ -258,3 +259,19 @@ export const notRawXml: RawXml = read;
 
 // @ts-expect-error It cannot be written back as extension content either.
 export const readAsContent: ext.UBLExtensionTypeInput = { ExtensionContent: read };
+
+// ── parseRawXml: a checked fragment becomes RawXml ──────────────────────────
+
+export const checked: RawXml = parseRawXml("<x:Entry/>", { x: "urn:example" });
+export const checkedWithoutBindings: RawXml = parseRawXml("<x:Entry xmlns:x=\"urn:example\"/>");
+export const checkedContent: ext.UBLExtensionTypeInput = { ExtensionContent: checked };
+export const checkedXml: string = serializeUbl(Invoice, { ...invoice, UBLExtensions: { UBLExtension: [checkedContent] } });
+
+// @ts-expect-error The result is read-only.
+checked.xml = "<y/>";
+
+// @ts-expect-error parseRawXml parses a string, not RawXml.
+parseRawXml({ xml: "<x/>", namespaces: {} });
+
+// @ts-expect-error Bindings are prefix → URI strings.
+parseRawXml("<x/>", { x: 1 });

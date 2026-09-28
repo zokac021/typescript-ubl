@@ -8,4 +8,4 @@ export type { SerializeUblOptions } from "./runtime/serialize.js";
 export { parseUbl } from "./ubl.js";
 export { parseUblAs, isUblDocument, UblParseError } from "./runtime/parse.js";
 export type { ParsedUblDocument, UblParseErrorCode } from "./runtime/parse.js";
-export { readRawXml, rawXmlAttributeValue, rawXmlChildElements, rawXmlElementText } from "./runtime/raw-xml-reader.js";
+export { parseRawXml, readRawXml, rawXmlAttributeValue, rawXmlChildElements, rawXmlElementText } from "./runtime/raw-xml-reader.js";

@@ -9,6 +9,11 @@
  * result is not RawXml, so it cannot be serialized in place of one. This is
  * not a DOM: no XPath, no mutation, no builder.
  *
+ * parseRawXml runs the same reader over a string and its context bindings,
+ * and returns RawXml rebuilt from the parser events, trusted as the document
+ * parser's extension content is. It is the only way from a string to trusted
+ * RawXml; the input string itself is never kept.
+ *
  * Security: the same rules as the document parser. A DOCTYPE is rejected, so
  * no DTD, entity declaration or external resource is ever read; saxes expands
  * only the predefined entities and character references, and does no I/O.
@@ -19,6 +24,7 @@ import { SaxesParser } from "saxes";
 import type { SaxesTagNS } from "saxes";
 import { UblParseError } from "./parse.js";
 import type { UblParseErrorCode } from "./parse.js";
+import { RawXmlWriter } from "./raw-xml.js";
 import { MAX_NESTING_DEPTH } from "./schema.js";
 import type { XmlName } from "./schema.js";
 import type { RawXml, RawXmlAttribute, RawXmlElement } from "./types.js";
@@ -37,6 +43,24 @@ export function readRawXml(raw: RawXml): RawXmlElement {
 	}
 	const bindings = namespaceBindings(own(raw, "namespaces") as Readonly<Record<string, unknown>>);
 	return new Reader(bindings).read(own(raw, "xml") as string);
+}
+
+/**
+ * Parse an XML fragment, exactly one element, into RawXml that serializeUbl
+ * writes without `trustRawXml` (e.g. as `ext:ExtensionContent`). `namespaces`
+ * are the bindings in scope around the fragment, prefix → URI ("" for the
+ * default namespace); the fragment may also declare its own. Nothing is
+ * inherited from the document it is later written into. Throws UblParseError
+ * like readRawXml (`xml.malformed`, `xml.doctype`, `structure.depth`,
+ * `rawXml.invalid`).
+ */
+export function parseRawXml(xml: string, namespaces: Readonly<Record<string, string>> = {}): RawXml {
+	if (typeof xml !== "string") throw new TypeError("parseRawXml expects the XML as a string.");
+	if (!isPlainObject(namespaces)) throw new TypeError("parseRawXml expects namespaces as Record<string, string>.");
+	const bindings = namespaceBindings(namespaces);
+	const writer = new RawXmlWriter();
+	new Reader(bindings, writer).read(xml);
+	return writer.toRawXml(bindings);
 }
 
 /** The element children, optionally only those with the given expanded name. Prefixes play no part. */
@@ -104,12 +128,15 @@ function namespaceBindings(namespaces: Readonly<Record<string, unknown>>): Reado
 
 class Reader {
 	private readonly bindings: Readonly<Record<string, string>>;
+	/** Rebuilds the element from the same events, for parseRawXml. */
+	private readonly writer: RawXmlWriter | undefined;
 	private readonly sax: SaxesParser<{ xmlns: true; position: true; additionalNamespaces: Record<string, string> }>;
 	private readonly open: OpenElement[] = [];
 	private root: RawXmlElement | undefined;
 
-	constructor(bindings: Readonly<Record<string, string>>) {
+	constructor(bindings: Readonly<Record<string, string>>, writer?: RawXmlWriter) {
 		this.bindings = bindings;
+		this.writer = writer;
 		// Not fragment mode: saxes then enforces one root and no text around it, and reports a DOCTYPE as an event.
 		this.sax = new SaxesParser({ xmlns: true, position: true, additionalNamespaces: { ...bindings } });
 	}
@@ -121,12 +148,19 @@ class Reader {
 		sax.on("doctype", () => this.fail("xml.doctype", "A DOCTYPE is not allowed: DTDs and entity declarations are never processed."));
 		sax.on("xmldecl", () => this.fail("rawXml.invalid", "RawXml must not contain an XML declaration."));
 		sax.on("opentag", (tag) => this.openTag(tag));
-		sax.on("closetag", () => this.closeTag());
+		sax.on("closetag", (tag) => this.closeTag(tag));
 		sax.on("text", (text) => this.text(text));
 		sax.on("cdata", (text) => this.text(text));
 		// Comments and processing instructions are not data; around the element they are not RawXml either.
-		sax.on("comment", () => this.outside("a comment"));
-		sax.on("processinginstruction", () => this.outside("a processing instruction"));
+		// Inside it they are kept in the rebuilt element, as the document parser keeps them.
+		sax.on("comment", (text) => {
+			this.outside("a comment");
+			this.writer?.comment(text);
+		});
+		sax.on("processinginstruction", ({ target, body }) => {
+			this.outside("a processing instruction");
+			this.writer?.processingInstruction(target, body);
+		});
 		sax.on("error", (error) => {
 			throw error;
 		});
@@ -159,9 +193,11 @@ class Reader {
 			.filter((attribute) => attribute.uri !== XMLNS_NAMESPACE)
 			.map((attribute): RawXmlAttribute => Object.freeze({ name: Object.freeze({ namespaceURI: attribute.uri, localName: attribute.local }), value: attribute.value }));
 		this.open.push({ name: Object.freeze({ namespaceURI: tag.uri, localName: tag.local }), attributes: Object.freeze(attributes), namespaces, children: [] });
+		this.writer?.openTag(tag);
 	}
 
-	private closeTag(): void {
+	private closeTag(tag: SaxesTagNS): void {
+		this.writer?.closeTag(tag);
 		const open = this.open.pop()!;
 		const element: RawXmlElement = Object.freeze({
 			kind: "element",
@@ -182,6 +218,7 @@ class Reader {
 			return;
 		}
 		if (text === "") return;
+		this.writer?.text(text);
 		const last = parent.children[parent.children.length - 1];
 		if (last?.kind === "text") last.value += text;
 		else parent.children.push({ kind: "text", value: text });
